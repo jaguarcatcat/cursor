@@ -23,6 +23,7 @@ from itertools import cycle
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
+from zoneinfo import ZoneInfo
 
 import requests
 from googlenewsdecoder import gnewsdecoder
@@ -38,6 +39,8 @@ USER_AGENT = (
 )
 
 DEFAULT_QUERIES_FILE = "queries.txt"
+REPORT_PREFIX = "results_lvgnews"
+MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 DEFAULT_QUERIES = [
     "лобов вадим университет синергия",
@@ -215,6 +218,36 @@ def load_queries(queries: list[str] | None = None, queries_file: str | None = No
             return loaded
 
     return DEFAULT_QUERIES.copy()
+
+
+def moscow_now() -> datetime:
+    return datetime.now(MOSCOW_TZ)
+
+
+def generate_report_filename(
+    output_dir: str | Path = ".",
+    prefix: str = REPORT_PREFIX,
+    force_time: bool = False,
+) -> Path:
+    """
+    Имя отчёта: results_lvgnews_DDMMYY.xlsx
+    Если за день уже есть отчёт (или force_time) — добавляет время МСК: _HHMM
+    """
+    output_dir = Path(output_dir)
+    now = moscow_now()
+    date_part = now.strftime("%d%m%y")
+    base_name = f"{prefix}_{date_part}.xlsx"
+    base_path = output_dir / base_name
+
+    if force_time or base_path.exists():
+        time_part = now.strftime("%H%M")
+        return output_dir / f"{prefix}_{date_part}_{time_part}.xlsx"
+
+    return base_path
+
+
+def format_check_date_moscow() -> str:
+    return moscow_now().strftime("%d.%m.%Y %H:%M MSK")
 
 
 def build_search_url(query: str) -> str:
@@ -914,19 +947,23 @@ def run_parser(
     queries: list[str] | None = None,
     queries_file: str | None = None,
     max_results: int = 20,
-    output_xlsx: str = "results.xlsx",
+    output_xlsx: str | None = None,
     output_json: str | None = None,
     proxy: str | None = None,
     proxies_file: str | None = None,
     decode_urls: bool = True,
+    output_dir: str = ".",
 ) -> list[NewsResult]:
     queries = load_queries(queries, queries_file)
     proxy_list = load_proxy_list(proxy, proxies_file)
     rotator = ProxyRotator(proxy_list) if proxy_list else None
 
+    if output_xlsx is None:
+        output_xlsx = str(generate_report_filename(output_dir))
+
     all_results: list[NewsResult] = []
     coverages: list[QueryCoverage] = []
-    check_date = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    check_date = format_check_date_moscow()
 
     print(f"Дата проверки: {check_date}")
     print(f"Регион: Россия (RU), язык: русский")
@@ -997,7 +1034,12 @@ def main():
         help="Файл со списком запросов (по одному на строку)",
     )
     parser.add_argument("--max-results", type=int, default=20)
-    parser.add_argument("--output-xlsx", default="results.xlsx", help="Путь к XLSX-файлу")
+    parser.add_argument(
+        "--output-xlsx",
+        default=None,
+        help="Путь к XLSX (по умолчанию: results_lvgnews_DDMMYY.xlsx или с _HHMM при повторном сборе)",
+    )
+    parser.add_argument("--output-dir", default=".", help="Каталог для отчётного XLSX")
     parser.add_argument("--output-json", default=None, help="Опциональный JSON-дамп")
     parser.add_argument(
         "--proxy",
@@ -1025,6 +1067,7 @@ def main():
         proxy=args.proxy,
         proxies_file=args.proxies_file,
         decode_urls=not args.no_decode_urls,
+        output_dir=args.output_dir,
     )
 
 

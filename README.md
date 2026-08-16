@@ -46,7 +46,13 @@ python google_news_parser.py --proxies-file proxies.txt --output-xlsx results.xl
 | `--queries-file` | Файл со списком запросов | `queries.txt` |
 | `--queries` | Запросы через CLI (перекрывает файл) | из `queries.txt` |
 | `--max-results` | Макс. результатов на запрос | 20 |
-| `--output-xlsx` | Путь к XLSX-файлу | `results.xlsx` |
+| `--output-xlsx` | Имя XLSX (авто: `results_lvgnews_DDMMYY.xlsx`) | авто |
+| `--output-dir` | Каталог для отчёта | `.` |
+
+### Именование отчёта
+
+- Первый сбор за день: `results_lvgnews_170826.xlsx` (дата DDMMYY по Москве)
+- Повторный сбор в тот же день: `results_lvgnews_170826_0232.xlsx` (добавляется время `_HHMM` МСК)
 | `--output-json` | Опциональный JSON-дамп | — |
 | `--proxies-file` | Файл со списком прокси | `proxies.txt` |
 | `--proxy` | Один прокси (дополнительно к файлу) | — |
