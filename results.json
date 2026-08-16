@@ -1,7 +1,8 @@
 {
-  "check_date": "16.08.2026 23:10 UTC",
+  "check_date": "16.08.2026 23:18 UTC",
   "region": "RU",
   "language": "ru",
+  "proxies_used": 15,
   "queries": [
     "лобов вадим университет синергия",
     "лобов вадим синергия",
@@ -100,7 +101,7 @@
       "query": "лобов вадим университет синергия",
       "position": 6,
       "title": "Интервью с президентом «Синергии»: «Будем привлекать молодежь к правовому просвещению школьников» - новости Право.ру",
-      "source": "ПРАВО.Ru",
+      "source": "pravo.ru",
       "url": "https://pravo.ru/story/253963/",
       "publication_date": "05.07.2024 07:00 UTC",
       "snippet": "сниппет Google недоступен",
@@ -410,7 +411,7 @@
       "query": "лобов вадим синергия",
       "position": 9,
       "title": "Интервью с президентом «Синергии»: «Будем привлекать молодежь к правовому просвещению школьников» - новости Право.ру",
-      "source": "ПРАВО.Ru",
+      "source": "pravo.ru",
       "url": "https://pravo.ru/story/253963/",
       "publication_date": "05.07.2024 07:00 UTC",
       "snippet": "сниппет Google недоступен",
@@ -564,7 +565,7 @@
       "query": "лобов вадим синергия",
       "position": 18,
       "title": "«Синергия» и Право.ru договорились развивать правовую культуру РФ - новости Право.ру",
-      "source": "ПРАВО.Ru",
+      "source": "pravo.ru",
       "url": "https://pravo.ru/lf/news/246443/",
       "publication_date": "11.05.2023 07:00 UTC",
       "snippet": "сниппет Google недоступен",
@@ -665,24 +666,6 @@
     {
       "query": "лобов вадим",
       "position": 4,
-      "title": "они свяжут главные точки обители в единую маршрутную сеть для паломников",
-      "source": "Журнал ФОМА",
-      "url": "https://foma.ru/patriarhu-kirillu-predstavili-proekt-ekotrop-na-valaame-oni-svyazhut-glavnye-tochki-obiteli-v-edinuyu-marshrutnuyu-set-dlya-palomnikov.html",
-      "publication_date": "15.07.2026 07:00 UTC",
-      "snippet": "сниппет Google недоступен",
-      "domain": "foma.ru",
-      "result_type": "новостной сюжет (кластер)",
-      "relevance_comment": "Низкая релевантность: возможно, другой человек с фамилией Лобов",
-      "is_cluster": true,
-      "cluster_sources": [
-        "кластер из ~2 публикаций"
-      ],
-      "data_source": "html",
-      "google_url": ""
-    },
-    {
-      "query": "лобов вадим",
-      "position": 5,
       "title": "Вадим Лобов как президент корпорации Синергия сообщил о создании Центра русского языка в Ираке",
       "source": "Отдел N",
       "url": "https://otdeln.ru/education/2025/11/01/vadim-lobov-kak-prezident-korporacii-sinergiya-soobshhil-o-sozdanii-centra-russkogo-yazyka-v-irake/",
@@ -700,7 +683,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 6,
+      "position": 5,
       "title": "Тимати с Ивановой, желтый синхрон Агаты и Дранги, кот Базилио Хрусталев: открытие «Арт Россия",
       "source": "StarHit",
       "url": "https://www.starhit.ru/novosti/timati-vopreki-slukham-ob-izmene-prishel-s-ivanovoi-agata-s-drangoi-v-zheltom-sinkhrone-a-khrustalev-v-obraze-kota-bazilio-otkrytie-art-rossiya-6939626/",
@@ -718,7 +701,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 7,
+      "position": 6,
       "title": "Шарашкин «университет Синергия» и его мошенник-собственник Вадим Лобов озолотится на уклонистах и халтурщиках",
       "source": "Портал РЕПОСТ",
       "url": "https://repost.news/news/12722-sharashkin_universitet_sinergija_i_ego_moshennik-sobstvennik_vadim_lobov_ozolotitsja_na_uklonistah_i_halturshchikah",
@@ -736,7 +719,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 8,
+      "position": 7,
       "title": "Вадим Лобов: предприниматель и создатель «Синергии»",
       "source": "Вести Подмосковья",
       "url": "https://vmo24.ru/news/vadim_lobov_predprinimatel_i_sozdatel_sinergii",
@@ -754,7 +737,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 9,
+      "position": 8,
       "title": "Выставка «За тридевять земель»: мультимедийное погружение в шедевры русского искусства на ВДНХ при поддержке Вадима Лобова — Осетия ТВ",
       "source": "Осетия ТВ",
       "url": "https://www.ossetia.tv/2025/09/10/vystavka-za-tridevyat-zemel-multimedijnoe-pogruzhenie-v-shedevry-russkogo-iskusstva-na-vdnh-pri-podderzhke-vadima-lobova/",
@@ -772,7 +755,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 10,
+      "position": 9,
       "title": "Вадим Лобов: «Якутский колледж цифровых профессий поможет республике готовить кадры для креативной экономики»",
       "source": "SakhaDay",
       "url": "https://sakhaday.ru/news/vadim-lobov-yakutskiy-kolledzh-cifrovyh-professiy-pomozhet-respublike-gotovit-kadry-dlya-kreativnoy-ekonomiki",
@@ -790,7 +773,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 11,
+      "position": 10,
       "title": "Корпорация «Синергия» приобрела часть российского бизнеса международной группы Hays",
       "source": "Forbes.ru",
       "url": "https://www.forbes.ru/svoi-biznes/472819-korporacia-sinergia-priobrela-cast-rossijskogo-biznesa-mezdunarodnoj-gruppy-hays",
@@ -808,7 +791,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 12,
+      "position": 11,
       "title": "Президент корпорации Синергия Вадим Георгиевич Лобов объявил о выходе на образовательный рынок Африки",
       "source": "Мегаполис — Городская сеть информирования и взаимопомощи",
       "url": "https://megapolisonline.ru/prezident-korporatsii-sinergiya-vadim-georgievich-lobov-obyavil-o-vyhode-na-obrazovatelnyj-rynok-afriki/",
@@ -826,7 +809,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 13,
+      "position": 12,
       "title": "Posta Art: открытие ярмарки современного искусства «Арт Россия» в Гостином дворе",
       "source": "Posta-Magazine",
       "url": "https://posta-magazine.ru/article/art-russia-2025-opening/",
@@ -842,9 +825,9 @@
     },
     {
       "query": "лобов вадим",
-      "position": 14,
+      "position": 13,
       "title": "«Синергия» и Право.ru договорились развивать правовую культуру РФ - новости Право.ру",
-      "source": "ПРАВО.Ru",
+      "source": "pravo.ru",
       "url": "https://pravo.ru/lf/news/246443/",
       "publication_date": "11.05.2023 07:00 UTC",
       "snippet": "сниппет Google недоступен",
@@ -860,7 +843,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 15,
+      "position": 14,
       "title": "Рост EdTech-выручки «Синергии» трехкратно превысил средний показатель рынка",
       "source": "TAdviser",
       "url": "https://www.tadviser.ru/index.php/%D0%9A%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F:%D0%A1%D0%B8%D0%BD%D0%B5%D1%80%D0%B3%D0%B8%D1%8F_%D0%9A%D0%BE%D1%80%D0%BF%D0%BE%D1%80%D0%B0%D1%86%D0%B8%D1%8F",
@@ -878,7 +861,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 16,
+      "position": 15,
       "title": "Фонд \"Защитники отечества\" и \"Синергия\" организуют бесплатное обучение ветеранов СВО",
       "source": "РАПСИ",
       "url": "http://rapsinews.ru/incident_news/20231211/309463728.html",
@@ -894,7 +877,7 @@
     },
     {
       "query": "лобов вадим",
-      "position": 17,
+      "position": 16,
       "title": "Вадим Георгиевич Лобов: Наши студенты смогут получить два диплома — «Синергии» и ведущего университета страны БРИКС | Россия-Онлайн",
       "source": "russia-on.ru",
       "url": "http://www.russia-on.ru/184386",
@@ -905,6 +888,24 @@
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
       "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
+    },
+    {
+      "query": "лобов вадим",
+      "position": 17,
+      "title": "Зачем покупать современное российское искусство? Отвечает сооснователь ярмарки «Арт.Россия»",
+      "source": "RTVI",
+      "url": "https://rtvi.com/lifestyle/zachem-pokupat-sovremennoe-rossijskoe-iskusstvo-otvechaet-soosnovatel-yarmarki-art-rossiya/",
+      "publication_date": "15.04.2025 07:00 UTC",
+      "snippet": "сниппет Google недоступен",
+      "domain": "rtvi.com",
+      "result_type": "новостной сюжет (кластер)",
+      "relevance_comment": "Низкая релевантность: возможно, другой человек с фамилией Лобов",
+      "is_cluster": true,
+      "cluster_sources": [
+        "кластер из ~2 публикаций"
+      ],
       "data_source": "html",
       "google_url": ""
     },
@@ -974,7 +975,7 @@
         5
       ],
       [
-        "ПРАВО.Ru",
+        "pravo.ru",
         4
       ],
       [
@@ -1018,14 +1019,13 @@
       "m.repost.news": 2,
       "forbes.ru": 2,
       "sminews.ru": 2,
-      "foma.ru": 2,
       "tadviser.ru": 2,
       "posta-magazine.ru": 2
     },
     "themes": {
       "Образование / Синергия": 41,
       "Бизнес / предпринимательство": 9,
-      "Искусство / Арт Россия": 7,
+      "Искусство / Арт Россия": 8,
       "EdTech / образование": 5,
       "Критика / негатив": 4
     },
@@ -1059,107 +1059,117 @@
       {
         "position": 4,
         "query": "лобов вадим",
-        "title": "они свяжут главные точки обители в единую маршрутную сеть для паломников",
-        "source": "Журнал ФОМА",
-        "url": "https://foma.ru/patriarhu-kirillu-predstavili-proekt-ekotrop-na-valaame-oni-svyazhut-glavnye-tochki-obiteli-v-edinuyu-marshrutnuyu-set-dlya-palomnikov.html"
-      },
-      {
-        "position": 5,
-        "query": "лобов вадим",
         "title": "Вадим Лобов как президент корпорации Синергия сообщил о создании Центра русского языка в Ираке",
         "source": "Отдел N",
         "url": "https://otdeln.ru/education/2025/11/01/vadim-lobov-kak-prezident-korporacii-sinergiya-soobshhil-o-sozdanii-centra-russkogo-yazyka-v-irake/"
       },
       {
-        "position": 6,
+        "position": 5,
         "query": "лобов вадим",
         "title": "Тимати с Ивановой, желтый синхрон Агаты и Дранги, кот Базилио Хрусталев: открытие «Арт Россия",
         "source": "StarHit",
         "url": "https://www.starhit.ru/novosti/timati-vopreki-slukham-ob-izmene-prishel-s-ivanovoi-agata-s-drangoi-v-zheltom-sinkhrone-a-khrustalev-v-obraze-kota-bazilio-otkrytie-art-rossiya-6939626/"
       },
       {
-        "position": 7,
+        "position": 6,
         "query": "лобов вадим",
         "title": "Шарашкин «университет Синергия» и его мошенник-собственник Вадим Лобов озолотится на уклонистах и халтурщиках",
         "source": "Портал РЕПОСТ",
         "url": "https://repost.news/news/12722-sharashkin_universitet_sinergija_i_ego_moshennik-sobstvennik_vadim_lobov_ozolotitsja_na_uklonistah_i_halturshchikah"
       },
       {
-        "position": 8,
+        "position": 7,
         "query": "лобов вадим",
         "title": "Вадим Лобов: предприниматель и создатель «Синергии»",
         "source": "Вести Подмосковья",
         "url": "https://vmo24.ru/news/vadim_lobov_predprinimatel_i_sozdatel_sinergii"
+      },
+      {
+        "position": 8,
+        "query": "лобов вадим",
+        "title": "Выставка «За тридевять земель»: мультимедийное погружение в шедевры русского искусства на ВДНХ при поддержке Вадима Лобова — Осетия ТВ",
+        "source": "Осетия ТВ",
+        "url": "https://www.ossetia.tv/2025/09/10/vystavka-za-tridevyat-zemel-multimedijnoe-pogruzhenie-v-shedevry-russkogo-iskusstva-na-vdnh-pri-podderzhke-vadima-lobova/"
       }
     ],
     "info_background_sources": [
-      "Парламент.UA",
-      "Портал РЕПОСТ"
+      "Портал РЕПОСТ",
+      "Парламент.UA"
     ],
     "total_results": 55,
-    "unique_domains": 21,
-    "unique_sources": 20,
+    "unique_domains": 22,
+    "unique_sources": 21,
     "clusters_count": 35,
     "coverage": [
       {
         "query": "лобов вадим университет синергия",
         "requested": 20,
         "collected": 15,
+        "available": 15,
         "html_count": 15,
-        "rss_count": 0,
-        "is_complete": false,
-        "note": "Google News вернул только 15 уникальных результатов по запросу «лобов вадим университет синергия» (запрошено 20). Это предел актуальной выдачи: узкий запрос даёт меньше публикаций. HTML: 15, RSS: 0. Для расширения глубины можно: (1) добавить RU-прокси, (2) использовать Playwright/Selenium для подгрузки 2-й страницы, (3) ослабить запрос."
+        "rss_count": 15,
+        "is_complete": true,
+        "note": "Собраны все 15 доступных результатов по запросу «лобов вадим университет синергия». В выдаче Google News меньше 20 уникальных публикаций (HTML: 15, RSS: 15, всего уникальных: 15).",
+        "proxy_used": "http://NyFnNG:1PntA2@194.67.202.50:9700"
       },
       {
         "query": "лобов вадим синергия",
         "requested": 20,
         "collected": 20,
-        "html_count": 20,
-        "rss_count": 0,
+        "available": 23,
+        "html_count": 23,
+        "rss_count": 22,
         "is_complete": true,
-        "note": "Собрано 20 из 20 запрошенных результатов."
+        "note": "Собрано 20 из 20 запрошенных (всего доступно в выдаче: 23).",
+        "proxy_used": "http://NyFnNG:1PntA2@194.67.216.147:9032"
       },
       {
         "query": "лобов вадим",
         "requested": 20,
         "collected": 20,
-        "html_count": 20,
-        "rss_count": 0,
+        "available": 47,
+        "html_count": 46,
+        "rss_count": 46,
         "is_complete": true,
-        "note": "Собрано 20 из 20 запрошенных результатов."
+        "note": "Собрано 20 из 20 запрошенных (всего доступно в выдаче: 47).",
+        "proxy_used": "http://NyFnNG:1PntA2@194.67.216.124:9413"
       }
     ],
-    "incomplete_queries": [
-      "лобов вадим университет синергия"
-    ]
+    "incomplete_queries": []
   },
   "coverage": [
     {
       "query": "лобов вадим университет синергия",
       "requested": 20,
       "collected": 15,
+      "available": 15,
       "html_count": 15,
-      "rss_count": 0,
-      "is_complete": false,
-      "note": "Google News вернул только 15 уникальных результатов по запросу «лобов вадим университет синергия» (запрошено 20). Это предел актуальной выдачи: узкий запрос даёт меньше публикаций. HTML: 15, RSS: 0. Для расширения глубины можно: (1) добавить RU-прокси, (2) использовать Playwright/Selenium для подгрузки 2-й страницы, (3) ослабить запрос."
+      "rss_count": 15,
+      "is_complete": true,
+      "note": "Собраны все 15 доступных результатов по запросу «лобов вадим университет синергия». В выдаче Google News меньше 20 уникальных публикаций (HTML: 15, RSS: 15, всего уникальных: 15).",
+      "proxy_used": "http://NyFnNG:1PntA2@194.67.202.50:9700"
     },
     {
       "query": "лобов вадим синергия",
       "requested": 20,
       "collected": 20,
-      "html_count": 20,
-      "rss_count": 0,
+      "available": 23,
+      "html_count": 23,
+      "rss_count": 22,
       "is_complete": true,
-      "note": "Собрано 20 из 20 запрошенных результатов."
+      "note": "Собрано 20 из 20 запрошенных (всего доступно в выдаче: 23).",
+      "proxy_used": "http://NyFnNG:1PntA2@194.67.216.147:9032"
     },
     {
       "query": "лобов вадим",
       "requested": 20,
       "collected": 20,
-      "html_count": 20,
-      "rss_count": 0,
+      "available": 47,
+      "html_count": 46,
+      "rss_count": 46,
       "is_complete": true,
-      "note": "Собрано 20 из 20 запрошенных результатов."
+      "note": "Собрано 20 из 20 запрошенных (всего доступно в выдаче: 47).",
+      "proxy_used": "http://NyFnNG:1PntA2@194.67.216.124:9413"
     }
   ]
 }

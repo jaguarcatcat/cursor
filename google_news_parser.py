@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -18,6 +19,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from itertools import cycle
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
@@ -89,10 +92,102 @@ class QueryCoverage:
     query: str
     requested: int
     collected: int
+    available: int
     html_count: int
     rss_count: int
     is_complete: bool
     note: str
+    proxy_used: str = ""
+
+
+class ProxyRotator:
+    """Ротация прокси с повторными попытками при ошибках."""
+
+    def __init__(self, proxy_urls: list[str]) -> None:
+        self._proxies = [p.strip() for p in proxy_urls if p.strip()]
+        self._cycle = cycle(self._proxies) if self._proxies else None
+        self._failed: set[str] = set()
+
+    @property
+    def available(self) -> bool:
+        return bool(self._proxies)
+
+    @property
+    def count(self) -> int:
+        return len(self._proxies)
+
+    def next_proxy(self) -> str | None:
+        if not self._cycle:
+            return None
+        active = [p for p in self._proxies if p not in self._failed]
+        if not active:
+            self._failed.clear()
+            active = self._proxies
+        return random.choice(active)
+
+    def mark_failed(self, proxy: str) -> None:
+        self._failed.add(proxy)
+
+    def create_session(self, proxy: str | None = None) -> requests.Session:
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": USER_AGENT,
+            "Accept-Language": "ru-RU,ru;q=0.9",
+        })
+        chosen = proxy or self.next_proxy()
+        if chosen:
+            session.proxies.update({"http": chosen, "https": chosen})
+        return session
+
+    def fetch(self, url: str, max_retries: int = 3) -> str:
+        last_error: Exception | None = None
+        tried: set[str] = set()
+
+        for _ in range(max_retries):
+            proxy = self.next_proxy()
+            if proxy and proxy in tried and len(tried) >= len(self._proxies):
+                break
+            if proxy:
+                tried.add(proxy)
+
+            session = self.create_session(proxy)
+            try:
+                response = session.get(url, timeout=30)
+                response.raise_for_status()
+                return response.text
+            except requests.RequestException as exc:
+                last_error = exc
+                if proxy:
+                    self.mark_failed(proxy)
+                time.sleep(0.5)
+
+        if last_error:
+            raise last_error
+        raise requests.RequestException(f"Не удалось загрузить {url}")
+
+
+def load_proxy_list(proxy_arg: str | None = None, proxies_file: str | None = None) -> list[str]:
+    proxies: list[str] = []
+
+    file_path = proxies_file or os.environ.get("GNEWS_PROXIES_FILE", "proxies.txt")
+    if Path(file_path).exists():
+        for line in Path(file_path).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                proxies.append(line)
+
+    if proxy_arg:
+        proxies.append(proxy_arg)
+    elif os.environ.get("GNEWS_PROXY"):
+        proxies.append(os.environ["GNEWS_PROXY"])
+
+    seen: set[str] = set()
+    unique: list[str] = []
+    for p in proxies:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
 
 
 def build_search_url(query: str) -> str:
@@ -105,26 +200,15 @@ def build_rss_url(query: str) -> str:
     return f"https://news.google.com/rss/search?q={encoded}&hl=ru&gl=RU&ceid=RU:ru"
 
 
-def create_session(proxies: dict[str, str] | None = None) -> requests.Session:
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "ru-RU,ru;q=0.9",
-    })
-    if proxies:
-        session.proxies.update(proxies)
-    return session
-
-
-def load_proxies(proxy_arg: str | None) -> dict[str, str] | None:
-    if not proxy_arg:
-        proxy_arg = os.environ.get("GNEWS_PROXY")
-    if not proxy_arg:
-        return None
-    return {"http": proxy_arg, "https": proxy_arg}
-
-
-def fetch_page(url: str, session: requests.Session) -> str:
+def fetch_page(url: str, rotator: ProxyRotator | None = None, session: requests.Session | None = None) -> str:
+    if rotator and rotator.available:
+        return rotator.fetch(url)
+    if session is None:
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": USER_AGENT,
+            "Accept-Language": "ru-RU,ru;q=0.9",
+        })
     response = session.get(url, timeout=30)
     response.raise_for_status()
     return response.text
@@ -449,13 +533,21 @@ def parse_rss_item(
     )
 
 
+def normalize_url_key(url: str) -> str:
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+    return f"{parsed.netloc}{path}".lower()
+
+
 def fetch_html_results(
     query: str,
-    session: requests.Session,
-    max_results: int,
+    rotator: ProxyRotator | None,
+    limit: int = 100,
 ) -> list[NewsResult]:
     try:
-        html = fetch_page(build_search_url(query), session)
+        html = fetch_page(build_search_url(query), rotator=rotator)
         data = extract_init_data(html)
         if not data:
             return []
@@ -464,14 +556,15 @@ def fetch_html_results(
         seen_urls: set[str] = set()
 
         for article_wrapper in extract_articles_list(data):
-            if len(results) >= max_results:
+            if len(results) >= limit:
                 break
             result = parse_html_article(article_wrapper, query, len(results) + 1)
             if not result or not result.url:
                 continue
-            if result.url in seen_urls:
+            key = normalize_url_key(result.url)
+            if key in seen_urls:
                 continue
-            seen_urls.add(result.url)
+            seen_urls.add(key)
             results.append(result)
         return results
     except requests.RequestException as exc:
@@ -481,30 +574,57 @@ def fetch_html_results(
 
 def fetch_rss_results(
     query: str,
-    session: requests.Session,
-    max_results: int,
-    seen_urls: set[str] | None = None,
+    rotator: ProxyRotator | None,
+    limit: int = 100,
     decode_urls: bool = True,
 ) -> list[NewsResult]:
-    seen_urls = seen_urls or set()
     results: list[NewsResult] = []
+    seen_urls: set[str] = set()
     try:
-        xml_text = fetch_page(build_rss_url(query), session)
+        xml_text = fetch_page(build_rss_url(query), rotator=rotator)
         root = ET.fromstring(xml_text)
+        session = rotator.create_session() if rotator and rotator.available else requests.Session()
+
         for item in root.findall(".//item"):
-            if len(results) >= max_results:
+            if len(results) >= limit:
                 break
             result = parse_rss_item(item, query, 0, session, decode_urls=decode_urls)
             if not result:
                 continue
-            dedupe_key = result.url or result.google_url
-            if not dedupe_key or dedupe_key in seen_urls:
+            key = normalize_url_key(result.url) or result.google_url
+            if not key or key in seen_urls:
                 continue
-            seen_urls.add(dedupe_key)
+            seen_urls.add(key)
             results.append(result)
     except (requests.RequestException, ET.ParseError) as exc:
         print(f"  [!] RSS-источник недоступен: {exc}", file=sys.stderr)
     return results
+
+
+def merge_results(
+    html_results: list[NewsResult],
+    rss_results: list[NewsResult],
+    max_results: int,
+) -> tuple[list[NewsResult], int]:
+    seen: set[str] = set()
+    merged: list[NewsResult] = []
+
+    for result in html_results:
+        key = normalize_url_key(result.url)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        merged.append(result)
+
+    for result in rss_results:
+        key = normalize_url_key(result.url) or result.google_url
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        merged.append(result)
+
+    available = len(merged)
+    return reindex_results(merged[:max_results]), available
 
 
 def reindex_results(results: list[NewsResult]) -> list[NewsResult]:
@@ -513,58 +633,68 @@ def reindex_results(results: list[NewsResult]) -> list[NewsResult]:
     return results
 
 
-def build_coverage_note(query: str, collected: int, requested: int, html_count: int, rss_count: int) -> str:
+def build_coverage_note(
+    query: str,
+    collected: int,
+    requested: int,
+    available: int,
+    html_count: int,
+    rss_count: int,
+) -> str:
     if collected >= requested:
-        return f"Собрано {collected} из {requested} запрошенных результатов."
+        return f"Собрано {collected} из {requested} запрошенных (всего доступно в выдаче: {available})."
 
     if collected == 0:
+        return "Google News не вернул результатов. Проверьте прокси и доступность сервиса."
+
+    if collected >= available:
         return (
-            "Google News не вернул результатов. Возможные причины: блокировка IP, "
-            "капча, ограничения Google. Рекомендуется использовать RU-прокси."
+            f"Собраны все {collected} доступных результатов по запросу «{query}». "
+            f"В выдаче Google News меньше {requested} уникальных публикаций "
+            f"(HTML: {html_count}, RSS: {rss_count}, всего уникальных: {available})."
         )
 
     return (
-        f"Google News вернул только {collected} уникальных результатов по запросу "
-        f"«{query}» (запрошено {requested}). Это предел актуальной выдачи: "
-        f"узкий запрос даёт меньше публикаций. HTML: {html_count}, RSS: {rss_count}. "
-        "Для расширения глубины можно: (1) добавить RU-прокси, "
-        "(2) использовать Playwright/Selenium для подгрузки 2-й страницы, "
-        "(3) ослабить запрос."
+        f"Собрано {collected} из {available} доступных "
+        f"(запрошено до {requested}). HTML: {html_count}, RSS: {rss_count}."
     )
 
 
 def parse_google_news(
     query: str,
-    session: requests.Session,
+    rotator: ProxyRotator | None,
     max_results: int = 20,
     decode_urls: bool = True,
 ) -> tuple[list[NewsResult], QueryCoverage]:
-    html_results = fetch_html_results(query, session, max_results)
-    seen_urls = {r.url for r in html_results if r.url}
+    fetch_limit = max(max_results, 100)
+    html_results = fetch_html_results(query, rotator, limit=fetch_limit)
+    rss_results = fetch_rss_results(query, rotator, limit=fetch_limit, decode_urls=decode_urls)
 
-    remaining = max(0, max_results - len(html_results))
-    rss_results: list[NewsResult] = []
-    if remaining > 0:
-        rss_results = fetch_rss_results(
-            query, session, remaining,
-            seen_urls=seen_urls.copy(),
-            decode_urls=decode_urls,
-        )
+    results, available = merge_results(html_results, rss_results, max_results)
+    collected = len(results)
 
-    all_results = reindex_results(html_results + rss_results)
-    collected = len(all_results)
-    note = build_coverage_note(query, collected, max_results, len(html_results), len(rss_results))
+    is_complete = collected >= max_results or collected >= available
+    note = build_coverage_note(
+        query, collected, max_results, available,
+        len(html_results), len(rss_results),
+    )
+
+    proxy_used = ""
+    if rotator and rotator.available:
+        proxy_used = rotator.next_proxy() or ""
 
     coverage = QueryCoverage(
         query=query,
         requested=max_results,
         collected=collected,
+        available=available,
         html_count=len(html_results),
         rss_count=len(rss_results),
-        is_complete=collected >= max_results,
+        is_complete=is_complete,
         note=note,
+        proxy_used=proxy_used,
     )
-    return all_results, coverage
+    return results, coverage
 
 
 def generate_analytics(
@@ -670,7 +800,7 @@ def export_to_xlsx(
         ("Язык", "русский"),
         ("Всего результатов", len(results)),
         ("Запросов", len(coverages)),
-        ("Неполных запросов", len([c for c in coverages if not c.is_complete])),
+        ("Запросов с полным покрытием", len([c for c in coverages if c.is_complete])),
     ]
     for label, value in meta_rows:
         ws_meta.append([label, value])
@@ -678,18 +808,21 @@ def export_to_xlsx(
     ws_meta.column_dimensions["B"].width = 50
 
     ws_cov = wb.create_sheet("Покрытие запросов")
-    ws_cov.append(["Запрос", "Запрошено", "Собрано", "HTML", "RSS", "Полное покрытие", "Комментарий"])
-    for col_idx in range(1, 8):
+    ws_cov.append([
+        "Запрос", "Запрошено", "Собрано", "Доступно в выдаче",
+        "HTML", "RSS", "Полное покрытие", "Комментарий",
+    ])
+    for col_idx in range(1, 9):
         ws_cov.cell(row=1, column=col_idx).font = header_font
         ws_cov.cell(row=1, column=col_idx).fill = header_fill
     for cov in coverages:
         ws_cov.append([
-            cov.query, cov.requested, cov.collected,
+            cov.query, cov.requested, cov.collected, cov.available,
             cov.html_count, cov.rss_count,
             "Да" if cov.is_complete else "Нет",
             cov.note,
         ])
-    for col_idx, width in enumerate([40, 12, 12, 10, 10, 16, 80], start=1):
+    for col_idx, width in enumerate([40, 12, 12, 16, 10, 10, 16, 80], start=1):
         ws_cov.column_dimensions[get_column_letter(col_idx)].width = width
 
     ws_an = wb.create_sheet("Аналитика")
@@ -734,43 +867,17 @@ def export_to_xlsx(
     ws_an.column_dimensions["C"].width = 60
 
     if analytics.get("incomplete_queries"):
-        ws_lim = wb.create_sheet("Ограничения и рекомендации")
-        ws_lim.append(["Вопрос / ограничение", "Рекомендация"])
+        ws_lim = wb.create_sheet("Ограничения")
+        ws_lim.append(["Запрос", "Комментарий"])
         ws_lim.cell(row=1, column=1).font = header_font
         ws_lim.cell(row=1, column=2).font = header_font
         ws_lim.cell(row=1, column=1).fill = header_fill
         ws_lim.cell(row=1, column=2).fill = header_fill
 
-        recommendations = [
-            (
-                f"Не удалось собрать 20 результатов по запросам: {', '.join(analytics['incomplete_queries'])}",
-                "Google News отдаёт ограниченное число публикаций по узким запросам. "
-                "Это не ошибка парсера — в выдаче просто меньше уникальных материалов.",
-            ),
-            (
-                "HTML-выдача Google News подгружает статьи через JavaScript",
-                "Первая «страница» HTML часто содержит 4–10 карточек. "
-                "Для 2-й страницы нужен Playwright/Selenium (прокрутка) или RU-прокси.",
-            ),
-            (
-                "Нужны ли RU-прокси?",
-                "Да, если: (1) IP заблокирован/капча, (2) выдача отличается от российской, "
-                "(3) нужна стабильная глубина 20+. Передайте прокси через --proxy или GNEWS_PROXY.",
-            ),
-            (
-                "Формат прокси",
-                "http://user:pass@host:port или socks5://user:pass@host:port. "
-                "Желательно резидентные RU-прокси.",
-            ),
-            (
-                "Альтернативы для глубины 20+",
-                "1) Playwright с прокруткой news.google.com; 2) SerpAPI/Scrape.do; "
-                "3) ослабить запрос; 4) RSS (уже используется как дополнение).",
-            ),
-        ]
-        for question, answer in recommendations:
-            ws_lim.append([question, answer])
-        ws_lim.column_dimensions["A"].width = 55
+        for cov in coverages:
+            if not cov.is_complete:
+                ws_lim.append([cov.query, cov.note])
+        ws_lim.column_dimensions["A"].width = 45
         ws_lim.column_dimensions["B"].width = 90
 
     wb.save(output_path)
@@ -782,11 +889,12 @@ def run_parser(
     output_xlsx: str = "results.xlsx",
     output_json: str | None = None,
     proxy: str | None = None,
+    proxies_file: str | None = None,
     decode_urls: bool = True,
 ) -> list[NewsResult]:
     queries = queries or DEFAULT_QUERIES
-    proxies = load_proxies(proxy)
-    session = create_session(proxies)
+    proxy_list = load_proxy_list(proxy, proxies_file)
+    rotator = ProxyRotator(proxy_list) if proxy_list else None
 
     all_results: list[NewsResult] = []
     coverages: list[QueryCoverage] = []
@@ -794,23 +902,32 @@ def run_parser(
 
     print(f"Дата проверки: {check_date}")
     print(f"Регион: Россия (RU), язык: русский")
-    if proxies:
-        print(f"Прокси: включён")
+    if rotator and rotator.available:
+        print(f"Прокси: {rotator.count} шт. (ротация включена)")
+    else:
+        print("Прокси: не используются")
     print()
 
     for query in queries:
         print(f"Парсинг запроса: «{query}»...")
         results, coverage = parse_google_news(
-            query, session, max_results=max_results, decode_urls=decode_urls,
+            query, rotator, max_results=max_results, decode_urls=decode_urls,
         )
         all_results.extend(results)
         coverages.append(coverage)
-        status = "OK" if coverage.is_complete else "НЕПОЛНО"
+
+        if coverage.collected >= coverage.requested:
+            status = "OK"
+        elif coverage.collected >= coverage.available:
+            status = "ВСЕ"
+        else:
+            status = "ЧАСТИЧНО"
+
         print(
             f"  [{status}] Собрано: {coverage.collected}/{coverage.requested} "
-            f"(HTML: {coverage.html_count}, RSS: {coverage.rss_count})"
+            f"(доступно: {coverage.available}, HTML: {coverage.html_count}, RSS: {coverage.rss_count})"
         )
-        if not coverage.is_complete:
+        if coverage.collected < coverage.requested:
             print(f"  → {coverage.note}")
         time.sleep(1.0)
 
@@ -824,6 +941,7 @@ def run_parser(
             "check_date": check_date,
             "region": "RU",
             "language": "ru",
+            "proxies_used": rotator.count if rotator else 0,
             "queries": queries,
             "results": [asdict(r) for r in all_results],
             "analytics": analytics,
@@ -832,19 +950,6 @@ def run_parser(
         with open(output_json, "w", encoding="utf-8") as f:
             json.dump(output_data, f, ensure_ascii=False, indent=2)
         print(f"JSON сохранён: {output_json}")
-
-    incomplete = [c for c in coverages if not c.is_complete]
-    if incomplete:
-        print("\n" + "=" * 80)
-        print("ВНИМАНИЕ: не все запросы достигли глубины 20")
-        print("=" * 80)
-        for cov in incomplete:
-            print(f"  • «{cov.query}»: {cov.collected}/{cov.requested}")
-        print("\nРекомендации:")
-        print("  1. Передайте RU-прокси: --proxy http://user:pass@host:port")
-        print("  2. Или переменную окружения: export GNEWS_PROXY=...")
-        print("  3. Для 2-й страницы Google News нужен браузерный парсинг (Playwright)")
-        print("  4. Узкий запрос может объективно иметь <20 публикаций в Google News")
 
     return all_results
 
@@ -858,7 +963,12 @@ def main():
     parser.add_argument(
         "--proxy",
         default=None,
-        help="Прокси (http://user:pass@host:port). Также: GNEWS_PROXY",
+        help="Один прокси (http://user:pass@host:port)",
+    )
+    parser.add_argument(
+        "--proxies-file",
+        default="proxies.txt",
+        help="Файл со списком прокси (по одному на строку)",
     )
     parser.add_argument(
         "--no-decode-urls",
@@ -873,6 +983,7 @@ def main():
         output_xlsx=args.output_xlsx,
         output_json=args.output_json,
         proxy=args.proxy,
+        proxies_file=args.proxies_file,
         decode_urls=not args.no_decode_urls,
     )
 

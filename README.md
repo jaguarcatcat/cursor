@@ -22,6 +22,21 @@ python google_news_parser.py
 - **Аналитика** — доминирующие СМИ, темы, тональность
 - **Ограничения и рекомендации** — если не удалось собрать 20 результатов
 
+### Прокси (обязательно для RU-выдачи)
+
+Создайте файл `proxies.txt` (по одному прокси на строку):
+
+```
+http://user:pass@194.67.202.31:9606
+http://user:pass@194.67.202.116:9377
+```
+
+```bash
+python google_news_parser.py --proxies-file proxies.txt --output-xlsx results.xlsx
+```
+
+Прокси ротируются автоматически при ошибках.
+
 ### Параметры
 
 | Параметр | Описание | По умолчанию |
@@ -30,7 +45,8 @@ python google_news_parser.py
 | `--max-results` | Макс. результатов на запрос | 20 |
 | `--output-xlsx` | Путь к XLSX-файлу | `results.xlsx` |
 | `--output-json` | Опциональный JSON-дамп | — |
-| `--proxy` | RU-прокси (`http://user:pass@host:port`) | `GNEWS_PROXY` env |
+| `--proxies-file` | Файл со списком прокси | `proxies.txt` |
+| `--proxy` | Один прокси (дополнительно к файлу) | — |
 | `--no-decode-urls` | Не раскодировать Google URL | — |
 
 ### Пример с прокси
