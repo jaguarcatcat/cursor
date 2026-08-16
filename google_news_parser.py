@@ -318,6 +318,9 @@ def analytics(rows: list[NewsResult]) -> dict[str, object]:
     domains = Counter(row.domain for row in rows if row.domain)
     sources = Counter(row.source for row in rows if row.source)
     tones = Counter(sentiment(row.title, row.snippet) for row in rows)
+    visibility: dict[str, list[NewsResult]] = {}
+    for row in rows:
+        visibility.setdefault(row.url, []).append(row)
     themes = {
         "образование/университет": ("университет", "образован", "обучен", "студент"),
         "бизнес/управление": ("президент", "корпорац", "бизнес", "предприним"),
@@ -334,15 +337,24 @@ def analytics(rows: list[NewsResult]) -> dict[str, object]:
                 matched = True
         if not matched:
             theme_counts["прочее"] += 1
-    notable = sorted(rows, key=lambda row: (row.position, row.query))[:5]
+    notable = sorted(
+        visibility.values(),
+        key=lambda matches: (-len(matches), min(row.position for row in matches)),
+    )[:5]
     return {
         "dominant_sources": sources.most_common(10),
         "repeated_domains": [(name, count) for name, count in domains.most_common() if count > 1],
         "themes": theme_counts.most_common(),
         "sentiment": tones.most_common(),
+        "information_background_sources": domains.most_common(10),
         "notable_publications": [
-            {"title": row.title, "source": row.source, "position": row.position}
-            for row in notable
+            {
+                "title": matches[0].title,
+                "source": matches[0].source,
+                "appearances": len(matches),
+                "best_position": min(row.position for row in matches),
+            }
+            for matches in notable
         ],
     }
 
@@ -407,8 +419,15 @@ def write_outputs(rows: list[NewsResult], output_dir: Path, checked_at: str) -> 
             + ", ".join(f"{name} ({count})" for name, count in summary["sentiment"]),
             "- Наиболее заметны публикации на первых позициях: "
             + "; ".join(
-                f"«{item['title']}» — {item['source']}"
+                f"«{item['title']}» — {item['source']} "
+                f"(встречается в {item['appearances']} запросах, "
+                f"лучшая позиция {item['best_position']})"
                 for item in summary["notable_publications"]
+            ),
+            "- Информационный фон потенциально формируют: "
+            + ", ".join(
+                f"{name} ({count})"
+                for name, count in summary["information_background_sources"]
             ),
             "",
             "Примечание: тональность и темы определены простыми словарными правилами. "
