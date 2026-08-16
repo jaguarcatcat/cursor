@@ -15,7 +15,7 @@ from google_news_parser import (
 )
 
 
-RSS_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
+RSS_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
   <item>
     <title>Вадим Лобов и университет &#171;Синергия&#187; - Test Media</title>
@@ -31,7 +31,7 @@ RSS_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
     <description>&lt;a href="https://a"&gt;Один&lt;/a&gt;&lt;a href="https://b"&gt;Два&lt;/a&gt;</description>
     <source url="https://other.test">Other</source>
   </item>
-</channel></rss>"""
+</channel></rss>""".encode("utf-8")
 
 
 class ParserTests(unittest.TestCase):

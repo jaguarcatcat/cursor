@@ -364,15 +364,26 @@ def build_analytics(results: list[NewsResult]) -> list[str]:
     repeated_domains = format_counts(
         [(name, count) for name, count in domains.most_common() if count > 1][:10]
     )
+    appearances = Counter(exact_page_key(item.url) for item in results)
+    unique_by_url: dict[str, NewsResult] = {}
+    for item in results:
+        key = exact_page_key(item.url)
+        if key not in unique_by_url or item.position < unique_by_url[key].position:
+            unique_by_url[key] = item
     visible = sorted(
-        results,
+        unique_by_url.values(),
         key=lambda item: (
+            -appearances[exact_page_key(item.url)],
             item.position,
             0 if item.relevance.startswith("высокая") else 1,
         ),
     )[:5]
     visible_text = "; ".join(
-        f"«{item.title}» ({item.source}, запрос «{item.query}», №{item.position})"
+        (
+            f"«{item.title}» ({item.source}, встречается в "
+            f"{appearances[exact_page_key(item.url)]} запросах, лучшая позиция "
+            f"№{item.position})"
+        )
         for item in visible
     )
     return [
@@ -400,9 +411,13 @@ def markdown_escape(value: str) -> str:
 
 
 def write_outputs(
-    results: list[NewsResult], output_dir: Path, checked_at: datetime
+    results: list[NewsResult],
+    output_dir: Path,
+    checked_at: datetime,
+    requested_limit: int = 20,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    query_counts = Counter(item.query for item in results)
     fields = list(NewsResult.__dataclass_fields__)
     with (output_dir / "google_news_results.csv").open(
         "w", encoding="utf-8-sig", newline=""
@@ -417,6 +432,8 @@ def write_outputs(
             {
                 "checked_at": checked_at.isoformat(),
                 "locale": {"hl": "ru", "gl": "RU", "ceid": "RU:ru"},
+                "requested_limit_per_query": requested_limit,
+                "result_count_by_query": dict(query_counts),
                 "results": [asdict(item) for item in results],
             },
             stream,
@@ -438,6 +455,14 @@ def write_outputs(
         "# Срез Google Новости",
         "",
         f"Дата проверки (UTC): {checked_at.isoformat()}",
+        (
+            f"Глубина: запрошено до {requested_limit} результатов на запрос; "
+            + "; ".join(
+                f"«{query}» — {query_counts[query]}"
+                for query in dict.fromkeys(item.query for item in results)
+            )
+            + "."
+        ),
         "",
         "| " + " | ".join(label for label, _ in columns) + " |",
         "|" + "|".join("---" for _ in columns) + "|",
@@ -510,7 +535,12 @@ def main(argv: list[str] | None = None) -> int:
     if not results:
         print("Google News не вернул ни одного результата", file=sys.stderr)
         return 1
-    write_outputs(results, args.output_dir, datetime.now(timezone.utc))
+    write_outputs(
+        results,
+        args.output_dir,
+        datetime.now(timezone.utc),
+        requested_limit=args.limit,
+    )
     print(f"Файлы сохранены в {args.output_dir.resolve()}")
     return 0
 
