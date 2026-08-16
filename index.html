@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сбор Google News → otchet</title>
+  <style>
+    :root {
+      --bg: #12151a;
+      --panel: #1c222b;
+      --ink: #ece7dc;
+      --mute: #9a9286;
+      --line: #2c3542;
+      --accent: #c4a574;
+      --ok: #8fba7a;
+      --bad: #d37a6a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 500px at 10% -10%, #2a241c 0%, var(--bg) 55%);
+      color: var(--ink);
+      font: 16px/1.45 "Segoe UI", system-ui, sans-serif;
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 36px 20px 64px; }
+    h1 { font-family: Georgia, "Iowan Old Style", serif; font-size: 34px; font-weight: 600; margin: 0 0 8px; }
+    .lead, .hint, .status, .path { color: var(--mute); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    label { display: block; margin: 0 0 8px; color: var(--accent); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+    textarea, input {
+      width: 100%;
+      background: #12161c;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 140px; gap: 12px; margin-top: 14px; }
+    button {
+      background: var(--accent);
+      color: #19160f;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 20px;
+      font: 600 16px/1 inherit;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    .warn {
+      background: #3a241f;
+      color: #f0c7be;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin: 16px 0;
+      display: none;
+    }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    a { color: var(--accent); }
+    ul { padding-left: 18px; }
+    pre {
+      background: #12161c;
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      color: #cfc6b8;
+      min-height: 72px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Сбор Google News</h1>
+  <p class="lead">Откройте эту панель через <code>zapusk.bat</code> или <code>zapusk.sh</code>. Кнопка запускает срез Google Новости и кладёт документ в папку <code>otchet</code>.</p>
+  <div class="warn" id="offline">Локальный сервер не запущен. Дважды нажмите <b>zapusk.bat</b> (Windows) или <b>zapusk.sh</b> (Mac/Linux) в этой папке — браузер откроется сам. Не закрывайте чёрное окно сервера, пока собираете отчёты.</div>
+
+  <section class="panel">
+    <label for="queries">Запросы, по одному на строку</label>
+    <textarea id="queries">лобов вадим университет синергия
+лобов вадим синергия
+лобов вадим</textarea>
+    <div class="row">
+      <div>
+        <label for="limit">Глубина выдачи</label>
+        <input id="limit" type="number" min="1" max="50" value="20">
+      </div>
+      <div style="align-self:end">
+        <button id="run" type="button">Собрать отчёт</button>
+      </div>
+    </div>
+    <p class="status" id="status">Готово к запуску.</p>
+    <p class="path" id="saved"></p>
+  </section>
+
+  <section class="panel">
+    <label>Журнал</label>
+    <pre id="log">ожидание сервера…</pre>
+  </section>
+
+  <section class="panel">
+    <label>Документы в otchet</label>
+    <div id="reports"><p class="hint">Пока нет сохранённых отчётов.</p></div>
+  </section>
+</main>
+<script>
+  const API = location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
+  const $ = (id) => document.getElementById(id);
+  let timer = null;
+
+  async function request(path, options) {
+    const res = await fetch(API + path, options);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  function renderReports(items) {
+    if (!items || !items.length) {
+      $("reports").innerHTML = '<p class="hint">Пока нет сохранённых отчётов.</p>';
+      return;
+    }
+    $("reports").innerHTML = "<ul>" + items.map((item) => {
+      return `<li><a href="${API + item.url}" target="_blank" rel="noopener">${item.id}</a> — ${item.modified}</li>`;
+    }).join("") + "</ul>";
+  }
+
+  async function refresh() {
+    try {
+      const data = await request("/api/status");
+      $("offline").style.display = "none";
+      $("log").textContent = (data.log || []).join("\n") || "сервер на связи";
+      renderReports(data.reports);
+      if (data.running) {
+        $("status").textContent = "Идёт сбор выдачи Google News…";
+        $("run").disabled = true;
+      } else {
+        $("run").disabled = false;
+        if (data.error) {
+          $("status").innerHTML = '<span class="bad">' + data.error + "</span>";
+        } else if (data.last) {
+          $("status").innerHTML = '<span class="ok">Последний сбор: ' + data.last.checked_at + ", карточек: " + data.last.count + "</span>";
+          $("saved").innerHTML = 'Документ: <a href="' + API + data.last.report_url + '" target="_blank">открыть otchet.html</a> · папка <code>' + data.last.folder + "</code>";
+        }
+      }
+      return true;
+    } catch (err) {
+      $("offline").style.display = "block";
+      $("log").textContent = "нет связи с http://127.0.0.1:8765 — запустите zapusk.bat / zapusk.sh";
+      return false;
+    }
+  }
+
+  $("run").addEventListener("click", async () => {
+    $("run").disabled = true;
+    $("status").textContent = "Запускаю сбор…";
+    $("saved").textContent = "";
+    try {
+      const queries = $("queries").value.split(/\n/).map((s) => s.trim()).filter(Boolean);
+      const data = await request("/api/collect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queries, limit: Number($("limit").value || 20) }),
+      });
+      $("status").innerHTML = '<span class="ok">Готово. Карточек: ' + data.count + "</span>";
+      $("saved").innerHTML = 'Документ записан в <code>' + data.folder + '</code>. <a href="' + API + data.report_url + '" target="_blank">Открыть отчёт</a>';
+    } catch (err) {
+      $("status").innerHTML = '<span class="bad">' + err.message + "</span>";
+    } finally {
+      await refresh();
+    }
+  });
+
+  refresh();
+  timer = setInterval(refresh, 2000);
+</script>
+</body>
+</html>

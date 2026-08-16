@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from html import unescape
+from html import escape, unescape
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -840,57 +840,232 @@ def build_report(
     return "\n".join(lines)
 
 
+TABLE_HEADERS = ["Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен"]
+
+
+def analytics_to_html(markdown_text: str) -> str:
+    chunks: list[str] = []
+    list_items: list[str] = []
+
+    def flush_list() -> None:
+        if list_items:
+            items = "".join(f"<li>{item}</li>" for item in list_items)
+            chunks.append(f"<ul>{items}</ul>")
+            list_items.clear()
+
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        if line.startswith("### "):
+            flush_list()
+            chunks.append(f"<h3>{escape(line[4:])}</h3>")
+        elif line.startswith("- "):
+            list_items.append(escape(line[2:]))
+        elif not line.strip():
+            flush_list()
+        else:
+            flush_list()
+            chunks.append(f"<p>{escape(line)}</p>")
+    flush_list()
+    return "\n".join(chunks)
+
+
+def html_table(results: list[NewsResult]) -> str:
+    head = "".join(f"<th>{escape(name)}</th>" for name in TABLE_HEADERS)
+    rows: list[str] = []
+    for item in results:
+        row = item.table_row()
+        cells: list[str] = []
+        for name in TABLE_HEADERS:
+            value = row[name]
+            if name == "URL" and value.startswith("http"):
+                cells.append(f'<td><a href="{escape(value)}">{escape(value)}</a></td>')
+            else:
+                cells.append(f"<td>{escape(value)}</td>")
+        rows.append(f"<tr>{''.join(cells)}</tr>")
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+
+
+def build_html_report(
+    results: list[NewsResult],
+    metas: list[dict[str, Any]],
+    checked_at: str,
+    markdown_report: str,
+) -> str:
+    comments: list[str] = []
+    for item in results:
+        cluster_note = f" Кластер: {item.cluster_role}." if item.clustered else ""
+        comments.append(
+            "<li>"
+            f"<strong>{escape(item.query)} / #{escape(str(item.position))}</strong> "
+            f"— тип: {escape(item.result_type)}. "
+            f"{escape(item.relevance_comment)}{escape(cluster_note)}"
+            "</li>"
+        )
+    meta_lines: list[str] = []
+    for meta in metas:
+        meta_lines.append(
+            "<li>"
+            f"«{escape(str(meta.get('query') or ''))}»: источник "
+            f"<code>{escape(str(meta.get('source_used') or ''))}</code>, "
+            f"сырых карточек {escape(str(meta.get('raw_count')))}, "
+            f"после фильтра {escape(str(meta.get('returned_count')))}."
+            "</li>"
+        )
+    clusters = [item for item in results if item.clustered]
+    if clusters:
+        cluster_html = "<ul>" + "".join(
+            "<li>"
+            f"Запрос «{escape(item.query)}», позиция {escape(str(item.position))}: "
+            f"{escape(item.cluster_role)}; размер сюжета {item.cluster_size}. "
+            f"{escape(item.title)} — {escape(item.url)}"
+            "</li>"
+            for item in clusters
+        ) + "</ul>"
+    else:
+        cluster_html = "<p>Объединённых сюжетов в выдаче не обнаружено.</p>"
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Отчёт Google News — {escape(checked_at)}</title>
+  <style>
+    :root {{ --ink:#1c1814; --paper:#f6f1e8; --line:#d7cbb8; --mute:#6b6156; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }}
+    main {{ max-width: 1200px; margin: 0 auto; padding: 32px 24px 64px; }}
+    h1, h2, h3 {{ font-weight: 600; letter-spacing: -0.02em; }}
+    h1 {{ font-size: 32px; margin: 0 0 12px; }}
+    .meta {{ color: var(--mute); margin-bottom: 28px; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 13px; background: #fffdf8; }}
+    th, td {{ border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }}
+    th {{ background: #efe6d6; position: sticky; top: 0; }}
+    td:nth-child(7) {{ word-break: break-all; }}
+    ul {{ padding-left: 20px; }}
+    .actions {{ margin: 16px 0 28px; }}
+    button {{ font: inherit; padding: 8px 14px; cursor: pointer; }}
+    @media print {{ .actions {{ display: none; }} body {{ background: white; }} }}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Срез выдачи Google News</h1>
+  <p class="meta">Дата проверки: {escape(checked_at)}. Регион: Россия. Язык: русский. Источник: Google Новости, не органический поиск.</p>
+  <p class="actions"><button onclick="window.print()">Печать / PDF</button></p>
+  <h2>Сводная таблица</h2>
+  {html_table(results)}
+  <h2>Кластеры / связанные публикации</h2>
+  {cluster_html}
+  <h2>Комментарии по релевантности и типу результата</h2>
+  <ul>{''.join(comments)}</ul>
+  <h2>Краткая аналитика</h2>
+  {analytics_to_html(build_analytics(results))}
+  <h2>Технические метаданные запросов</h2>
+  <ul>{''.join(meta_lines)}</ul>
+</main>
+</body>
+</html>
+"""
+
+
+def new_run_dir(output_root: Path) -> Path:
+    output_root.mkdir(parents=True, exist_ok=True)
+    stamp = moscow_now().strftime("%Y-%m-%d_%H%M%S")
+    run_dir = output_root / stamp
+    suffix = 2
+    while run_dir.exists():
+        run_dir = output_root / f"{stamp}_{suffix}"
+        suffix += 1
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
 def write_outputs(results: list[NewsResult], report: str, output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / "google_news_results.json"
-    csv_path = output_dir / "google_news_results.csv"
-    md_path = output_dir / "google_news_report.md"
-    json_path.write_text(
+    write_run_files(results, report, build_html_report(results, [], "", report), output_dir, [])
+
+
+def write_run_files(
+    results: list[NewsResult],
+    report: str,
+    html_report: str,
+    run_dir: Path,
+    metas: list[dict[str, Any]] | None = None,
+) -> dict[str, str]:
+    del metas
+    run_dir.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "html": run_dir / "otchet.html",
+        "md": run_dir / "otchet.md",
+        "json": run_dir / "dannye.json",
+        "csv": run_dir / "dannye.csv",
+    }
+    paths["html"].write_text(html_report, encoding="utf-8")
+    paths["md"].write_text(report, encoding="utf-8")
+    paths["json"].write_text(
         json.dumps([asdict(item) for item in results], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    with csv_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен"],
-        )
+    with paths["csv"].open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=TABLE_HEADERS)
         writer.writeheader()
         for item in results:
             writer.writerow(item.table_row())
-    md_path.write_text(report, encoding="utf-8")
+    return {key: str(path) for key, path in paths.items()}
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Парсер выдачи Google News (RU).")
-    parser.add_argument("--queries", nargs="+", default=DEFAULT_QUERIES, help="Поисковые запросы")
-    parser.add_argument("--limit", type=int, default=20, help="Глубина выдачи по каждому запросу")
-    parser.add_argument("--output-dir", default="output", help="Каталог для JSON/CSV/Markdown")
-    parser.add_argument("--from-html", help="Разобрать сохранённый HTML вместо живого запроса")
-    parser.add_argument("--query", help="Запрос для режима --from-html")
-    parser.add_argument("--pause", type=float, default=1.0, help="Пауза между живыми запросами")
-    return parser.parse_args(argv)
+def copy_latest(run_dir: Path, output_root: Path) -> str:
+    latest_html = output_root / "posledniy.html"
+    source = run_dir / "otchet.html"
+    latest_html.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    return str(latest_html)
 
 
-def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    args = parse_args(argv)
+def list_otchet_runs(output_root: Path) -> list[dict[str, Any]]:
+    if not output_root.exists():
+        return []
+    runs: list[dict[str, Any]] = []
+    for path in sorted(output_root.iterdir(), reverse=True):
+        html_path = path / "otchet.html"
+        if path.is_dir() and html_path.exists():
+            runs.append(
+                {
+                    "id": path.name,
+                    "folder": str(path),
+                    "html": str(html_path),
+                    "modified": datetime.fromtimestamp(
+                        html_path.stat().st_mtime, tz=ZoneInfo("Europe/Moscow")
+                    ).strftime("%Y-%m-%d %H:%M %Z"),
+                }
+            )
+    return runs
+
+
+def collect(
+    queries: list[str] | None = None,
+    limit: int = 20,
+    output_root: Path | str = "otchet",
+    from_html: str | None = None,
+    query: str | None = None,
+    pause: float = 1.0,
+) -> dict[str, Any]:
+    selected_queries = queries or DEFAULT_QUERIES
     checked_at = moscow_now().strftime("%Y-%m-%d %H:%M %Z")
     all_results: list[NewsResult] = []
     metas: list[dict[str, Any]] = []
 
-    if args.from_html:
-        html = Path(args.from_html).read_text(encoding="utf-8")
-        query = args.query or (args.queries[0] if args.queries else "")
+    if from_html:
+        html = Path(from_html).read_text(encoding="utf-8")
+        current_query = query or (selected_queries[0] if selected_queries else "")
         fetched_at = moscow_now().isoformat(timespec="seconds")
-        parsed = parse_html_results(html, query, fetched_at)
+        parsed = parse_html_results(html, current_query, fetched_at)
         parsed = dedupe_exact_pages(parsed)
-        parsed = limit_serp_positions(parsed, args.limit)
+        parsed = limit_serp_positions(parsed, limit)
         all_results.extend(parsed)
         metas.append(
             {
-                "query": query,
-                "search_url": news_search_url(query),
-                "rss_url": news_rss_url(query),
+                "query": current_query,
+                "search_url": news_search_url(current_query),
+                "rss_url": news_rss_url(current_query),
                 "source_used": "local_html",
                 "raw_count": len(parsed),
                 "returned_count": len(parsed),
@@ -898,15 +1073,57 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
     else:
-        for query in args.queries:
-            LOGGER.info("Fetching Google News for %r", query)
-            results, meta = fetch_query_results(query, limit=args.limit, pause_sec=args.pause)
+        for current_query in selected_queries:
+            LOGGER.info("Fetching Google News for %r", current_query)
+            results, meta = fetch_query_results(current_query, limit=limit, pause_sec=pause)
             all_results.extend(results)
             metas.append(meta)
 
     report = build_report(all_results, metas, checked_at)
-    write_outputs(all_results, report, Path(args.output_dir))
-    print(report)
+    html_report = build_html_report(all_results, metas, checked_at, report)
+    root = Path(output_root)
+    run_dir = new_run_dir(root)
+    files = write_run_files(all_results, report, html_report, run_dir, metas)
+    latest = copy_latest(run_dir, root)
+    return {
+        "checked_at": checked_at,
+        "run_id": run_dir.name,
+        "folder": str(run_dir),
+        "files": files,
+        "latest_html": latest,
+        "count": len(all_results),
+        "queries": selected_queries,
+        "report_md": report,
+    }
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Парсер выдачи Google News (RU).")
+    parser.add_argument("--queries", nargs="+", default=DEFAULT_QUERIES, help="Поисковые запросы")
+    parser.add_argument("--limit", type=int, default=20, help="Глубина выдачи по каждому запросу")
+    parser.add_argument("--output-dir", default="otchet", help="Корневой каталог отчётов")
+    parser.add_argument("--from-html", help="Разобрать сохранённый HTML вместо живого запроса")
+    parser.add_argument("--query", help="Запрос для режима --from-html")
+    parser.add_argument("--pause", type=float, default=1.0, help="Пауза между живыми запросами")
+    parser.add_argument("--quiet", action="store_true", help="Не печатать отчёт в консоль")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    args = parse_args(argv)
+    result = collect(
+        queries=args.queries,
+        limit=args.limit,
+        output_root=args.output_dir,
+        from_html=args.from_html,
+        query=args.query,
+        pause=args.pause,
+    )
+    if not args.quiet:
+        print(result["report_md"])
+        print(f"\nДокумент сохранён: {result['files']['html']}", file=sys.stderr)
+        print(f"Последний отчёт: {result['latest_html']}", file=sys.stderr)
     return 0
 
 
