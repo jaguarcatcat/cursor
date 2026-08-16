@@ -1,24 +1,32 @@
 #!/usr/bin/env python3
 """
 Парсер выдачи Google News (Google Новости) для заданных поисковых запросов.
-Регион: Россия, язык: русский.
+Регион: Россия, язык: русский. Финальный вывод — XLSX с кликабельными URL.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
+import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
 import requests
+from googlenewsdecoder import gnewsdecoder
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.hyperlink import Hyperlink
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -42,6 +50,21 @@ POSITIVE_KEYWORDS = [
     "открыти", "запуск", "приобрел", "договорил", "организуют",
 ]
 
+XLSX_COLUMNS = [
+    ("Запрос", "query", 35),
+    ("Позиция", "position", 10),
+    ("Заголовок", "title", 55),
+    ("СМИ", "source", 25),
+    ("Дата публикации", "publication_date", 22),
+    ("Сниппет", "snippet", 40),
+    ("URL материала", "url", 50),
+    ("Домен", "domain", 22),
+    ("Тип результата", "result_type", 28),
+    ("Кластер Google", "is_cluster", 14),
+    ("Источник данных", "data_source", 18),
+    ("Комментарий (релевантность)", "relevance_comment", 45),
+]
+
 
 @dataclass
 class NewsResult:
@@ -57,14 +80,48 @@ class NewsResult:
     relevance_comment: str
     is_cluster: bool = False
     cluster_sources: list[str] = field(default_factory=list)
+    data_source: str = "html"
+    google_url: str = ""
+
+
+@dataclass
+class QueryCoverage:
+    query: str
+    requested: int
+    collected: int
+    html_count: int
+    rss_count: int
+    is_complete: bool
+    note: str
 
 
 def build_search_url(query: str) -> str:
     encoded = quote_plus(query)
-    return (
-        f"https://news.google.com/search"
-        f"?q={encoded}&hl=ru&gl=RU&ceid=RU:ru"
-    )
+    return f"https://news.google.com/search?q={encoded}&hl=ru&gl=RU&ceid=RU:ru"
+
+
+def build_rss_url(query: str) -> str:
+    encoded = quote_plus(query)
+    return f"https://news.google.com/rss/search?q={encoded}&hl=ru&gl=RU&ceid=RU:ru"
+
+
+def create_session(proxies: dict[str, str] | None = None) -> requests.Session:
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "ru-RU,ru;q=0.9",
+    })
+    if proxies:
+        session.proxies.update(proxies)
+    return session
+
+
+def load_proxies(proxy_arg: str | None) -> dict[str, str] | None:
+    if not proxy_arg:
+        proxy_arg = os.environ.get("GNEWS_PROXY")
+    if not proxy_arg:
+        return None
+    return {"http": proxy_arg, "https": proxy_arg}
 
 
 def fetch_page(url: str, session: requests.Session) -> str:
@@ -82,6 +139,61 @@ def extract_init_data(html: str) -> list[Any] | None:
     if not match:
         return None
     return json.loads(match.group(1))
+
+
+def extract_articles_list(data: list[Any]) -> list[Any]:
+    if not data or len(data) < 2:
+        return []
+    articles_raw = data[1]
+    if not isinstance(articles_raw, list) or not articles_raw:
+        return []
+
+    candidates: list[Any] = []
+    for block in articles_raw:
+        if not isinstance(block, list):
+            continue
+        for item in block:
+            if _looks_like_article_wrapper(item):
+                candidates.append(item)
+
+    if candidates:
+        return candidates
+
+    first = articles_raw[0]
+    if isinstance(first, list):
+        return [item for item in first if _looks_like_article_wrapper(item)]
+    return []
+
+
+def _looks_like_article_wrapper(item: Any) -> bool:
+    if not isinstance(item, list):
+        return False
+    article_data = _unwrap_article_data(item)
+    return (
+        isinstance(article_data, list)
+        and len(article_data) > 6
+        and isinstance(article_data[2], str)
+        and bool(article_data[2].strip())
+    )
+
+
+def _unwrap_article_data(article_wrapper: list) -> list | None:
+    if not article_wrapper:
+        return None
+    if (
+        isinstance(article_wrapper[0], int)
+        or (
+            isinstance(article_wrapper[0], list)
+            and article_wrapper[0]
+            and isinstance(article_wrapper[0][0], int)
+        )
+    ):
+        if isinstance(article_wrapper[0], list):
+            return article_wrapper[0]
+        return article_wrapper
+    if isinstance(article_wrapper[0], list):
+        return article_wrapper[0]
+    return None
 
 
 def extract_domain(url: str) -> str:
@@ -107,8 +219,19 @@ def format_timestamp(ts_list: list | None) -> str:
         return "дата недоступна"
 
 
+def format_rss_date(pub_date: str | None) -> str:
+    if not pub_date:
+        return "дата недоступна"
+    try:
+        dt = parsedate_to_datetime(pub_date)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime("%d.%m.%Y %H:%M UTC")
+    except (TypeError, ValueError):
+        return pub_date
+
+
 def detect_cluster(token: str) -> tuple[bool, int]:
-    """Определяет, объединил ли Google несколько публикаций в один сюжет."""
     if not token:
         return False, 0
     parts = re.findall(r"CBM[a-zA-Z0-9_-]+", token)
@@ -119,12 +242,9 @@ def detect_cluster(token: str) -> tuple[bool, int]:
     return False, 0
 
 
-def extract_snippet(article_data: list) -> str:
-    """Извлекает сниппет из данных статьи, если он есть."""
+def extract_snippet_from_html(article_data: list) -> str:
     title = article_data[2] if len(article_data) > 2 else ""
-
-    for idx in range(len(article_data)):
-        val = article_data[idx]
+    for val in article_data:
         if (
             isinstance(val, str)
             and val != title
@@ -135,8 +255,32 @@ def extract_snippet(article_data: list) -> str:
             and "Перейти на страницу" not in val
         ):
             return unescape(val)
-
     return "сниппет Google недоступен"
+
+
+def extract_snippet_from_rss(description: str | None, title: str) -> str:
+    if not description:
+        return "сниппет Google недоступен"
+    text = re.sub(r"<[^>]+>", " ", description)
+    text = unescape(re.sub(r"\s+", " ", text)).strip()
+    source_suffix = re.search(r"\s{2,}(.+)$", text)
+    if source_suffix:
+        text = text[: source_suffix.start()].strip()
+    if text == title or len(text) < 10:
+        return "сниппет Google недоступен"
+    return text
+
+
+def decode_google_url(google_url: str, session: requests.Session) -> str:
+    if not google_url or "news.google.com" not in google_url:
+        return google_url
+    try:
+        result = gnewsdecoder(google_url, interval=0.5)
+        if isinstance(result, dict) and result.get("status") and result.get("decoded_url"):
+            return result["decoded_url"]
+    except Exception:
+        pass
+    return google_url
 
 
 def determine_result_type(title: str, source: str, is_cluster: bool) -> str:
@@ -205,16 +349,13 @@ def assess_sentiment(title: str) -> str:
     return "нейтральная"
 
 
-def parse_article(
+def parse_html_article(
     article_wrapper: list,
     query: str,
     position: int,
 ) -> NewsResult | None:
-    if not article_wrapper or not isinstance(article_wrapper, list):
-        return None
-
-    article_data = article_wrapper[0]
-    if not isinstance(article_data, list) or len(article_data) < 7:
+    article_data = _unwrap_article_data(article_wrapper)
+    if not article_data or len(article_data) < 7:
         return None
 
     title = article_data[2] if isinstance(article_data[2], str) else ""
@@ -223,28 +364,72 @@ def parse_article(
 
     title = unescape(title)
     url = article_data[6] if isinstance(article_data[6], str) else ""
-    if not url:
-        url = article_data[38] if len(article_data) > 38 and isinstance(article_data[38], str) else ""
+    if not url and len(article_data) > 38 and isinstance(article_data[38], str):
+        url = article_data[38]
 
     source = ""
     if len(article_data) > 10 and isinstance(article_data[10], list) and len(article_data[10]) > 2:
         source = article_data[10][2] if isinstance(article_data[10][2], str) else ""
-
-    pub_date = format_timestamp(article_data[4] if len(article_data) > 4 else None)
-    snippet = extract_snippet(article_data)
-    domain = extract_domain(url)
 
     token = ""
     if len(article_data) > 1 and isinstance(article_data[1], list) and len(article_data[1]) > 1:
         token = article_data[1][1] if isinstance(article_data[1][1], str) else ""
 
     is_cluster, cluster_count = detect_cluster(token)
-    result_type = determine_result_type(title, source, is_cluster)
-    relevance = assess_relevance(query, title, source)
 
-    cluster_sources = []
-    if is_cluster:
-        cluster_sources = [f"кластер из ~{cluster_count} публикаций"]
+    return NewsResult(
+        query=query,
+        position=position,
+        title=title,
+        source=source,
+        url=url,
+        publication_date=format_timestamp(article_data[4] if len(article_data) > 4 else None),
+        snippet=extract_snippet_from_html(article_data),
+        domain=extract_domain(url),
+        result_type=determine_result_type(title, source, is_cluster),
+        relevance_comment=assess_relevance(query, title, source),
+        is_cluster=is_cluster,
+        cluster_sources=[f"кластер из ~{cluster_count} публикаций"] if is_cluster else [],
+        data_source="html",
+        google_url="",
+    )
+
+
+def parse_rss_item(
+    item: ET.Element,
+    query: str,
+    position: int,
+    session: requests.Session,
+    decode_urls: bool = True,
+) -> NewsResult | None:
+    ns = {"media": "http://search.yahoo.com/mrss/"}
+    title_el = item.find("title")
+    link_el = item.find("link")
+    pub_el = item.find("pubDate")
+    desc_el = item.find("description")
+    source_el = item.find("source")
+    guid_el = item.find("guid")
+
+    title_raw = title_el.text if title_el is not None and title_el.text else ""
+    if not title_raw:
+        return None
+
+    title = unescape(title_raw)
+    if " - " in title:
+        title = title.rsplit(" - ", 1)[0].strip()
+
+    google_url = link_el.text.strip() if link_el is not None and link_el.text else ""
+    source = source_el.text.strip() if source_el is not None and source_el.text else ""
+    pub_date = format_rss_date(pub_el.text if pub_el is not None else None)
+    description = desc_el.text if desc_el is not None else ""
+    snippet = extract_snippet_from_rss(description, title)
+
+    guid = guid_el.text if guid_el is not None and guid_el.text else ""
+    is_cluster, cluster_count = detect_cluster(guid)
+
+    url = google_url
+    if decode_urls and google_url:
+        url = decode_google_url(google_url, session)
 
     return NewsResult(
         query=query,
@@ -254,11 +439,97 @@ def parse_article(
         url=url,
         publication_date=pub_date,
         snippet=snippet,
-        domain=domain,
-        result_type=result_type,
-        relevance_comment=relevance,
+        domain=extract_domain(url),
+        result_type=determine_result_type(title, source, is_cluster),
+        relevance_comment=assess_relevance(query, title, source),
         is_cluster=is_cluster,
-        cluster_sources=cluster_sources,
+        cluster_sources=[f"кластер из ~{cluster_count} публикаций"] if is_cluster else [],
+        data_source="rss",
+        google_url=google_url,
+    )
+
+
+def fetch_html_results(
+    query: str,
+    session: requests.Session,
+    max_results: int,
+) -> list[NewsResult]:
+    try:
+        html = fetch_page(build_search_url(query), session)
+        data = extract_init_data(html)
+        if not data:
+            return []
+
+        results: list[NewsResult] = []
+        seen_urls: set[str] = set()
+
+        for article_wrapper in extract_articles_list(data):
+            if len(results) >= max_results:
+                break
+            result = parse_html_article(article_wrapper, query, len(results) + 1)
+            if not result or not result.url:
+                continue
+            if result.url in seen_urls:
+                continue
+            seen_urls.add(result.url)
+            results.append(result)
+        return results
+    except requests.RequestException as exc:
+        print(f"  [!] HTML-источник недоступен: {exc}", file=sys.stderr)
+        return []
+
+
+def fetch_rss_results(
+    query: str,
+    session: requests.Session,
+    max_results: int,
+    seen_urls: set[str] | None = None,
+    decode_urls: bool = True,
+) -> list[NewsResult]:
+    seen_urls = seen_urls or set()
+    results: list[NewsResult] = []
+    try:
+        xml_text = fetch_page(build_rss_url(query), session)
+        root = ET.fromstring(xml_text)
+        for item in root.findall(".//item"):
+            if len(results) >= max_results:
+                break
+            result = parse_rss_item(item, query, 0, session, decode_urls=decode_urls)
+            if not result:
+                continue
+            dedupe_key = result.url or result.google_url
+            if not dedupe_key or dedupe_key in seen_urls:
+                continue
+            seen_urls.add(dedupe_key)
+            results.append(result)
+    except (requests.RequestException, ET.ParseError) as exc:
+        print(f"  [!] RSS-источник недоступен: {exc}", file=sys.stderr)
+    return results
+
+
+def reindex_results(results: list[NewsResult]) -> list[NewsResult]:
+    for idx, result in enumerate(results, start=1):
+        result.position = idx
+    return results
+
+
+def build_coverage_note(query: str, collected: int, requested: int, html_count: int, rss_count: int) -> str:
+    if collected >= requested:
+        return f"Собрано {collected} из {requested} запрошенных результатов."
+
+    if collected == 0:
+        return (
+            "Google News не вернул результатов. Возможные причины: блокировка IP, "
+            "капча, ограничения Google. Рекомендуется использовать RU-прокси."
+        )
+
+    return (
+        f"Google News вернул только {collected} уникальных результатов по запросу "
+        f"«{query}» (запрошено {requested}). Это предел актуальной выдачи: "
+        f"узкий запрос даёт меньше публикаций. HTML: {html_count}, RSS: {rss_count}. "
+        "Для расширения глубины можно: (1) добавить RU-прокси, "
+        "(2) использовать Playwright/Selenium для подгрузки 2-й страницы, "
+        "(3) ослабить запрос."
     )
 
 
@@ -266,44 +537,40 @@ def parse_google_news(
     query: str,
     session: requests.Session,
     max_results: int = 20,
-) -> list[NewsResult]:
-    url = build_search_url(query)
-    html = fetch_page(url, session)
-    data = extract_init_data(html)
+    decode_urls: bool = True,
+) -> tuple[list[NewsResult], QueryCoverage]:
+    html_results = fetch_html_results(query, session, max_results)
+    seen_urls = {r.url for r in html_results if r.url}
 
-    if not data or len(data) < 2:
-        print(f"  [!] Не удалось извлечь данные для запроса: {query}", file=sys.stderr)
-        return []
+    remaining = max(0, max_results - len(html_results))
+    rss_results: list[NewsResult] = []
+    if remaining > 0:
+        rss_results = fetch_rss_results(
+            query, session, remaining,
+            seen_urls=seen_urls.copy(),
+            decode_urls=decode_urls,
+        )
 
-    articles_raw = data[1]
-    if not articles_raw or not isinstance(articles_raw, list):
-        return []
+    all_results = reindex_results(html_results + rss_results)
+    collected = len(all_results)
+    note = build_coverage_note(query, collected, max_results, len(html_results), len(rss_results))
 
-    articles_list = articles_raw[0] if isinstance(articles_raw[0], list) else articles_raw
-
-    results: list[NewsResult] = []
-    seen_urls: set[str] = set()
-    position = 0
-
-    for article_wrapper in articles_list:
-        if len(results) >= max_results:
-            break
-
-        position += 1
-        result = parse_article(article_wrapper, query, position)
-        if not result or not result.url:
-            continue
-
-        if result.url in seen_urls:
-            continue
-        seen_urls.add(result.url)
-
-        results.append(result)
-
-    return results
+    coverage = QueryCoverage(
+        query=query,
+        requested=max_results,
+        collected=collected,
+        html_count=len(html_results),
+        rss_count=len(rss_results),
+        is_complete=collected >= max_results,
+        note=note,
+    )
+    return all_results, coverage
 
 
-def generate_analytics(all_results: list[NewsResult]) -> dict[str, Any]:
+def generate_analytics(
+    all_results: list[NewsResult],
+    coverages: list[QueryCoverage],
+) -> dict[str, Any]:
     if not all_results:
         return {"error": "Нет результатов для анализа"}
 
@@ -325,14 +592,6 @@ def generate_analytics(all_results: list[NewsResult]) -> dict[str, Any]:
             themes["Бизнес / предпринимательство"] += 1
 
     sentiments = Counter(assess_sentiment(r.title) for r in all_results)
-
-    top_by_position = sorted(all_results, key=lambda r: (r.query, r.position))[:5]
-
-    info_background_sources = [
-        r.source for r in all_results
-        if any(w in r.title.lower() for w in ["мошенник", "шарашкин", "блок", "отзыв", "разводят"])
-    ]
-
     repeated_domains = {d: c for d, c in domain_counter.items() if c > 1}
 
     return {
@@ -341,119 +600,224 @@ def generate_analytics(all_results: list[NewsResult]) -> dict[str, Any]:
         "themes": dict(themes.most_common()),
         "sentiment_distribution": dict(sentiments),
         "most_visible": [
-            {"position": r.position, "query": r.query, "title": r.title, "source": r.source}
-            for r in top_by_position
+            {"position": r.position, "query": r.query, "title": r.title, "source": r.source, "url": r.url}
+            for r in sorted(all_results, key=lambda x: (x.query, x.position))[:8]
         ],
-        "info_background_sources": list(set(info_background_sources)),
+        "info_background_sources": list({
+            r.source for r in all_results
+            if any(w in r.title.lower() for w in ["мошенник", "шарашкин", "блок", "отзыв", "разводят"])
+        }),
         "total_results": len(all_results),
         "unique_domains": len(domain_counter),
         "unique_sources": len(source_counter),
         "clusters_count": sum(1 for r in all_results if r.is_cluster),
+        "coverage": [asdict(c) for c in coverages],
+        "incomplete_queries": [c.query for c in coverages if not c.is_complete],
     }
 
 
-def format_markdown_table(results: list[NewsResult]) -> str:
-    lines = [
-        "| Запрос | Позиция | Заголовок | СМИ | Дата | Сниппет | URL | Домен |",
-        "|--------|---------|-----------|-----|------|---------|-----|-------|",
+def export_to_xlsx(
+    results: list[NewsResult],
+    analytics: dict[str, Any],
+    coverages: list[QueryCoverage],
+    output_path: str,
+    check_date: str,
+) -> None:
+    wb = Workbook()
+
+    ws = wb.active
+    ws.title = "Результаты"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1F4E79")
+    link_font = Font(color="0563C1", underline="single")
+
+    headers = [col[0] for col in XLSX_COLUMNS]
+    ws.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    url_col_idx = next(i for i, (_, key, _) in enumerate(XLSX_COLUMNS, start=1) if key == "url")
+
+    for row_idx, result in enumerate(results, start=2):
+        row_values = []
+        for _, key, _ in XLSX_COLUMNS:
+            value = getattr(result, key)
+            if key == "is_cluster":
+                value = "Да" if value else "Нет"
+            row_values.append(value)
+        ws.append(row_values)
+
+        url = result.url
+        if url:
+            url_cell = ws.cell(row=row_idx, column=url_col_idx)
+            url_cell.hyperlink = Hyperlink(ref=url_cell.coordinate, target=url)
+            url_cell.font = link_font
+            url_cell.value = url
+
+    for col_idx, (_, _, width) in enumerate(XLSX_COLUMNS, start=1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(results) + 1}"
+
+    ws_meta = wb.create_sheet("Метаданные")
+    meta_rows = [
+        ("Дата проверки", check_date),
+        ("Регион", "Россия (RU)"),
+        ("Язык", "русский"),
+        ("Всего результатов", len(results)),
+        ("Запросов", len(coverages)),
+        ("Неполных запросов", len([c for c in coverages if not c.is_complete])),
     ]
+    for label, value in meta_rows:
+        ws_meta.append([label, value])
+    ws_meta.column_dimensions["A"].width = 28
+    ws_meta.column_dimensions["B"].width = 50
 
-    for r in results:
-        title = r.title.replace("|", "\\|")[:80]
-        snippet = r.snippet.replace("|", "\\|")[:60]
-        url_short = r.url[:60] + ("..." if len(r.url) > 60 else "")
-        cluster_mark = " [КЛАСТЕР]" if r.is_cluster else ""
-        lines.append(
-            f"| {r.query[:30]} | {r.position} | {title}{cluster_mark} | {r.source} "
-            f"| {r.publication_date} | {snippet} | {url_short} | {r.domain} |"
-        )
+    ws_cov = wb.create_sheet("Покрытие запросов")
+    ws_cov.append(["Запрос", "Запрошено", "Собрано", "HTML", "RSS", "Полное покрытие", "Комментарий"])
+    for col_idx in range(1, 8):
+        ws_cov.cell(row=1, column=col_idx).font = header_font
+        ws_cov.cell(row=1, column=col_idx).fill = header_fill
+    for cov in coverages:
+        ws_cov.append([
+            cov.query, cov.requested, cov.collected,
+            cov.html_count, cov.rss_count,
+            "Да" if cov.is_complete else "Нет",
+            cov.note,
+        ])
+    for col_idx, width in enumerate([40, 12, 12, 10, 10, 16, 80], start=1):
+        ws_cov.column_dimensions[get_column_letter(col_idx)].width = width
 
-    return "\n".join(lines)
+    ws_an = wb.create_sheet("Аналитика")
+    ws_an.append(["Раздел", "Показатель", "Значение"])
+    for col_idx in range(1, 4):
+        ws_an.cell(row=1, column=col_idx).font = header_font
+        ws_an.cell(row=1, column=col_idx).fill = header_fill
 
+    def add_section(title: str, rows: list[tuple[str, Any]]) -> None:
+        for key, val in rows:
+            ws_an.append([title, key, val])
 
-def format_analytics_md(analytics: dict[str, Any]) -> str:
-    lines = ["## Аналитика\n"]
+    add_section("Общее", [
+        ("Всего публикаций", analytics.get("total_results", 0)),
+        ("Уникальных доменов", analytics.get("unique_domains", 0)),
+        ("Уникальных СМИ", analytics.get("unique_sources", 0)),
+        ("Кластеров Google", analytics.get("clusters_count", 0)),
+    ])
 
-    lines.append("### Доминирующие СМИ")
-    for source, count in analytics.get("dominant_sources", [])[:7]:
-        lines.append(f"- **{source}** — {count} публикаций")
-    lines.append("")
+    for source, count in analytics.get("dominant_sources", []):
+        add_section("Доминирующие СМИ", [(source, count)])
 
-    repeated = analytics.get("repeated_domains", {})
-    lines.append("### Домены, встречающиеся несколько раз")
-    if repeated:
-        for domain, count in sorted(repeated.items(), key=lambda x: -x[1]):
-            lines.append(f"- {domain} — {count} раз(а)")
-    else:
-        lines.append("- Повторяющихся доменов не обнаружено")
-    lines.append("")
+    for domain, count in analytics.get("repeated_domains", {}).items():
+        add_section("Повторяющиеся домены", [(domain, f"{count} раз")])
 
-    lines.append("### Преобладающие темы / интенты")
     for theme, count in analytics.get("themes", {}).items():
-        lines.append(f"- {theme}: {count}")
-    lines.append("")
+        add_section("Темы", [(theme, count)])
 
-    sentiments = analytics.get("sentiment_distribution", {})
-    lines.append("### Тональность публикаций")
-    for sentiment, count in sentiments.items():
-        lines.append(f"- {sentiment.capitalize()}: {count}")
-    lines.append("")
+    for sentiment, count in analytics.get("sentiment_distribution", {}).items():
+        add_section("Тональность", [(sentiment, count)])
 
-    lines.append("### Наиболее заметные публикации (топ позиций)")
     for item in analytics.get("most_visible", []):
-        lines.append(
-            f"- Поз. {item['position']} [{item['query'][:25]}]: "
-            f"{item['title'][:70]}... ({item['source']})"
-        )
-    lines.append("")
+        add_section("Заметные публикации", [
+            (f"Поз.{item['position']} [{item['query'][:20]}]", item["title"][:80]),
+        ])
 
-    bg = analytics.get("info_background_sources", [])
-    lines.append("### Источники, формирующие информационный фон")
-    if bg:
-        for s in bg:
-            lines.append(f"- {s}")
-    else:
-        lines.append("- Явных «фоновых» критических источников не выделено")
+    for source in analytics.get("info_background_sources", []):
+        add_section("Информационный фон", [(source, "критический/фоновый источник")])
 
-    clusters = analytics.get("clusters_count", 0)
-    lines.append(f"\n### Кластеры Google News: {clusters} сюжетов объединены из нескольких публикаций")
+    ws_an.column_dimensions["A"].width = 24
+    ws_an.column_dimensions["B"].width = 45
+    ws_an.column_dimensions["C"].width = 60
 
-    return "\n".join(lines)
+    if analytics.get("incomplete_queries"):
+        ws_lim = wb.create_sheet("Ограничения и рекомендации")
+        ws_lim.append(["Вопрос / ограничение", "Рекомендация"])
+        ws_lim.cell(row=1, column=1).font = header_font
+        ws_lim.cell(row=1, column=2).font = header_font
+        ws_lim.cell(row=1, column=1).fill = header_fill
+        ws_lim.cell(row=1, column=2).fill = header_fill
+
+        recommendations = [
+            (
+                f"Не удалось собрать 20 результатов по запросам: {', '.join(analytics['incomplete_queries'])}",
+                "Google News отдаёт ограниченное число публикаций по узким запросам. "
+                "Это не ошибка парсера — в выдаче просто меньше уникальных материалов.",
+            ),
+            (
+                "HTML-выдача Google News подгружает статьи через JavaScript",
+                "Первая «страница» HTML часто содержит 4–10 карточек. "
+                "Для 2-й страницы нужен Playwright/Selenium (прокрутка) или RU-прокси.",
+            ),
+            (
+                "Нужны ли RU-прокси?",
+                "Да, если: (1) IP заблокирован/капча, (2) выдача отличается от российской, "
+                "(3) нужна стабильная глубина 20+. Передайте прокси через --proxy или GNEWS_PROXY.",
+            ),
+            (
+                "Формат прокси",
+                "http://user:pass@host:port или socks5://user:pass@host:port. "
+                "Желательно резидентные RU-прокси.",
+            ),
+            (
+                "Альтернативы для глубины 20+",
+                "1) Playwright с прокруткой news.google.com; 2) SerpAPI/Scrape.do; "
+                "3) ослабить запрос; 4) RSS (уже используется как дополнение).",
+            ),
+        ]
+        for question, answer in recommendations:
+            ws_lim.append([question, answer])
+        ws_lim.column_dimensions["A"].width = 55
+        ws_lim.column_dimensions["B"].width = 90
+
+    wb.save(output_path)
 
 
 def run_parser(
     queries: list[str] | None = None,
     max_results: int = 20,
+    output_xlsx: str = "results.xlsx",
     output_json: str | None = None,
-    output_md: str | None = None,
+    proxy: str | None = None,
+    decode_urls: bool = True,
 ) -> list[NewsResult]:
     queries = queries or DEFAULT_QUERIES
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT, "Accept-Language": "ru-RU,ru;q=0.9"})
+    proxies = load_proxies(proxy)
+    session = create_session(proxies)
 
     all_results: list[NewsResult] = []
+    coverages: list[QueryCoverage] = []
     check_date = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
 
     print(f"Дата проверки: {check_date}")
-    print(f"Регион: Россия (RU), язык: русский\n")
+    print(f"Регион: Россия (RU), язык: русский")
+    if proxies:
+        print(f"Прокси: включён")
+    print()
 
     for query in queries:
         print(f"Парсинг запроса: «{query}»...")
-        results = parse_google_news(query, session, max_results=max_results)
-        print(f"  Получено результатов: {len(results)}")
+        results, coverage = parse_google_news(
+            query, session, max_results=max_results, decode_urls=decode_urls,
+        )
         all_results.extend(results)
-        time.sleep(1.5)
+        coverages.append(coverage)
+        status = "OK" if coverage.is_complete else "НЕПОЛНО"
+        print(
+            f"  [{status}] Собрано: {coverage.collected}/{coverage.requested} "
+            f"(HTML: {coverage.html_count}, RSS: {coverage.rss_count})"
+        )
+        if not coverage.is_complete:
+            print(f"  → {coverage.note}")
+        time.sleep(1.0)
 
-    analytics = generate_analytics(all_results)
+    analytics = generate_analytics(all_results, coverages)
 
-    table = format_markdown_table(all_results)
-    analytics_md = format_analytics_md(analytics)
-
-    print("\n" + "=" * 80)
-    print("СВОДНАЯ ТАБЛИЦА")
-    print("=" * 80)
-    print(table)
-    print("\n" + analytics_md)
+    export_to_xlsx(all_results, analytics, coverages, output_xlsx, check_date)
+    print(f"\nXLSX сохранён: {output_xlsx} ({len(all_results)} строк)")
 
     if output_json:
         output_data = {
@@ -463,44 +827,53 @@ def run_parser(
             "queries": queries,
             "results": [asdict(r) for r in all_results],
             "analytics": analytics,
+            "coverage": [asdict(c) for c in coverages],
         }
         with open(output_json, "w", encoding="utf-8") as f:
             json.dump(output_data, f, ensure_ascii=False, indent=2)
-        print(f"\nJSON сохранён: {output_json}")
+        print(f"JSON сохранён: {output_json}")
 
-    if output_md:
-        md_content = (
-            f"# Google News — результаты парсинга\n\n"
-            f"**Дата проверки:** {check_date}\n"
-            f"**Регион:** Россия, **Язык:** русский\n\n"
-            f"{table}\n\n{analytics_md}"
-        )
-        with open(output_md, "w", encoding="utf-8") as f:
-            f.write(md_content)
-        print(f"Markdown сохранён: {output_md}")
+    incomplete = [c for c in coverages if not c.is_complete]
+    if incomplete:
+        print("\n" + "=" * 80)
+        print("ВНИМАНИЕ: не все запросы достигли глубины 20")
+        print("=" * 80)
+        for cov in incomplete:
+            print(f"  • «{cov.query}»: {cov.collected}/{cov.requested}")
+        print("\nРекомендации:")
+        print("  1. Передайте RU-прокси: --proxy http://user:pass@host:port")
+        print("  2. Или переменную окружения: export GNEWS_PROXY=...")
+        print("  3. Для 2-й страницы Google News нужен браузерный парсинг (Playwright)")
+        print("  4. Узкий запрос может объективно иметь <20 публикаций в Google News")
 
     return all_results
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Парсер Google News")
+    parser = argparse.ArgumentParser(description="Парсер Google News → XLSX")
+    parser.add_argument("--queries", nargs="+", default=DEFAULT_QUERIES)
+    parser.add_argument("--max-results", type=int, default=20)
+    parser.add_argument("--output-xlsx", default="results.xlsx", help="Путь к XLSX-файлу")
+    parser.add_argument("--output-json", default=None, help="Опциональный JSON-дамп")
     parser.add_argument(
-        "--queries", nargs="+", default=DEFAULT_QUERIES,
-        help="Поисковые запросы",
+        "--proxy",
+        default=None,
+        help="Прокси (http://user:pass@host:port). Также: GNEWS_PROXY",
     )
     parser.add_argument(
-        "--max-results", type=int, default=20,
-        help="Максимум результатов на запрос (по умолчанию 20)",
+        "--no-decode-urls",
+        action="store_true",
+        help="Не декодировать Google URL в прямые ссылки издателя",
     )
-    parser.add_argument("--output-json", default="results.json", help="Путь к JSON-файлу")
-    parser.add_argument("--output-md", default="results.md", help="Путь к Markdown-файлу")
     args = parser.parse_args()
 
     run_parser(
         queries=args.queries,
         max_results=args.max_results,
+        output_xlsx=args.output_xlsx,
         output_json=args.output_json,
-        output_md=args.output_md,
+        proxy=args.proxy,
+        decode_urls=not args.no_decode_urls,
     )
 
 

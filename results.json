@@ -1,5 +1,5 @@
 {
-  "check_date": "16.08.2026 23:05 UTC",
+  "check_date": "16.08.2026 23:10 UTC",
   "region": "RU",
   "language": "ru",
   "queries": [
@@ -20,7 +20,9 @@
       "result_type": "блог / авторская публикация",
       "relevance_comment": "Средняя релевантность: упоминаются Лобов и Синергия, но не университет",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -36,7 +38,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -52,7 +56,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -68,7 +74,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -84,7 +92,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -98,7 +108,9 @@
       "result_type": "новостная статья / интервью",
       "relevance_comment": "Низкая релевантность: совпадение с запросом минимальное",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -112,7 +124,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Низкая релевантность: совпадение с запросом минимальное",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -128,7 +142,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -144,7 +160,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -160,7 +178,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -174,7 +194,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок содержит все ключевые слова запроса",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -188,7 +210,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Средняя релевантность: упоминаются Лобов и Синергия, но не университет",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -204,7 +228,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -218,7 +244,9 @@
       "result_type": "справочный материал",
       "relevance_comment": "Частичная релевантность: совпадение по части запроса",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим университет синергия",
@@ -234,7 +262,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -248,7 +278,9 @@
       "result_type": "блог / авторская публикация",
       "relevance_comment": "Высокая релевантность: заголовок содержит Лобов и Синергия",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -264,7 +296,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -278,7 +312,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок содержит Лобов и Синергия",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -294,7 +330,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -310,7 +348,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -326,7 +366,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -342,7 +384,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -358,7 +402,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -372,7 +418,9 @@
       "result_type": "новостная статья / интервью",
       "relevance_comment": "Средняя релевантность: упоминается Синергия, но не Лобов",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -388,7 +436,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -404,7 +454,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -418,7 +470,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Средняя релевантность: упоминается Синергия, но не Лобов",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -434,7 +488,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -450,7 +506,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -464,7 +522,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок содержит Лобов и Синергия",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -478,7 +538,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Средняя релевантность: упоминается Синергия, но не Лобов",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -494,7 +556,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -510,7 +574,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -524,7 +590,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок содержит Лобов и Синергия",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим синергия",
@@ -540,7 +608,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -554,7 +624,9 @@
       "result_type": "блог / авторская публикация",
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -570,7 +642,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -584,7 +658,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -600,7 +676,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -616,7 +694,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -632,7 +712,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -648,7 +730,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -664,7 +748,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -680,7 +766,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -696,7 +784,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -712,7 +802,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -728,7 +820,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -742,7 +836,9 @@
       "result_type": "событийная публикация",
       "relevance_comment": "Низкая релевантность: возможно, другой человек с фамилией Лобов",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -758,7 +854,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -774,7 +872,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -788,7 +888,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Низкая релевантность: возможно, другой человек с фамилией Лобов",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -802,7 +904,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -816,7 +920,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -832,7 +938,9 @@
       "is_cluster": true,
       "cluster_sources": [
         "кластер из ~2 публикаций"
-      ]
+      ],
+      "data_source": "html",
+      "google_url": ""
     },
     {
       "query": "лобов вадим",
@@ -846,7 +954,9 @@
       "result_type": "новостная статья",
       "relevance_comment": "Высокая релевантность: заголовок соответствует запросу",
       "is_cluster": false,
-      "cluster_sources": []
+      "cluster_sources": [],
+      "data_source": "html",
+      "google_url": ""
     }
   ],
   "analytics": {
@@ -929,40 +1039,127 @@
         "position": 1,
         "query": "лобов вадим",
         "title": "Вадим Георгиевич Лобов и корпорация \"Синергия\" в фокусе внимания моего очередного подкаста ЖЗЛ Ростокин. Digital",
-        "source": "Sostav.ru"
+        "source": "Sostav.ru",
+        "url": "https://www.sostav.ru/blogs/289047/94470"
       },
       {
         "position": 2,
         "query": "лобов вадим",
         "title": "Основатели «Арт России» Вадим Лобов и Елизавета Фролова — о коллекционировании без посредников",
-        "source": "buro247.ru"
+        "source": "buro247.ru",
+        "url": "https://www.buro247.ru/culture/arts/23-mar-2026-art-russia-interview.html"
       },
       {
         "position": 3,
         "query": "лобов вадим",
         "title": "Вадим Лобов и корпорация «Синергия» запустили выставку «За тридевять земель» на ВДНХ как новое прочтение классики русского искусства с поддержкой мультимедиа форматов — SMINEWS",
-        "source": "SMINEWS"
+        "source": "SMINEWS",
+        "url": "https://sminews.ru/2891"
       },
       {
         "position": 4,
         "query": "лобов вадим",
         "title": "они свяжут главные точки обители в единую маршрутную сеть для паломников",
-        "source": "Журнал ФОМА"
+        "source": "Журнал ФОМА",
+        "url": "https://foma.ru/patriarhu-kirillu-predstavili-proekt-ekotrop-na-valaame-oni-svyazhut-glavnye-tochki-obiteli-v-edinuyu-marshrutnuyu-set-dlya-palomnikov.html"
       },
       {
         "position": 5,
         "query": "лобов вадим",
         "title": "Вадим Лобов как президент корпорации Синергия сообщил о создании Центра русского языка в Ираке",
-        "source": "Отдел N"
+        "source": "Отдел N",
+        "url": "https://otdeln.ru/education/2025/11/01/vadim-lobov-kak-prezident-korporacii-sinergiya-soobshhil-o-sozdanii-centra-russkogo-yazyka-v-irake/"
+      },
+      {
+        "position": 6,
+        "query": "лобов вадим",
+        "title": "Тимати с Ивановой, желтый синхрон Агаты и Дранги, кот Базилио Хрусталев: открытие «Арт Россия",
+        "source": "StarHit",
+        "url": "https://www.starhit.ru/novosti/timati-vopreki-slukham-ob-izmene-prishel-s-ivanovoi-agata-s-drangoi-v-zheltom-sinkhrone-a-khrustalev-v-obraze-kota-bazilio-otkrytie-art-rossiya-6939626/"
+      },
+      {
+        "position": 7,
+        "query": "лобов вадим",
+        "title": "Шарашкин «университет Синергия» и его мошенник-собственник Вадим Лобов озолотится на уклонистах и халтурщиках",
+        "source": "Портал РЕПОСТ",
+        "url": "https://repost.news/news/12722-sharashkin_universitet_sinergija_i_ego_moshennik-sobstvennik_vadim_lobov_ozolotitsja_na_uklonistah_i_halturshchikah"
+      },
+      {
+        "position": 8,
+        "query": "лобов вадим",
+        "title": "Вадим Лобов: предприниматель и создатель «Синергии»",
+        "source": "Вести Подмосковья",
+        "url": "https://vmo24.ru/news/vadim_lobov_predprinimatel_i_sozdatel_sinergii"
       }
     ],
     "info_background_sources": [
-      "Портал РЕПОСТ",
-      "Парламент.UA"
+      "Парламент.UA",
+      "Портал РЕПОСТ"
     ],
     "total_results": 55,
     "unique_domains": 21,
     "unique_sources": 20,
-    "clusters_count": 35
-  }
+    "clusters_count": 35,
+    "coverage": [
+      {
+        "query": "лобов вадим университет синергия",
+        "requested": 20,
+        "collected": 15,
+        "html_count": 15,
+        "rss_count": 0,
+        "is_complete": false,
+        "note": "Google News вернул только 15 уникальных результатов по запросу «лобов вадим университет синергия» (запрошено 20). Это предел актуальной выдачи: узкий запрос даёт меньше публикаций. HTML: 15, RSS: 0. Для расширения глубины можно: (1) добавить RU-прокси, (2) использовать Playwright/Selenium для подгрузки 2-й страницы, (3) ослабить запрос."
+      },
+      {
+        "query": "лобов вадим синергия",
+        "requested": 20,
+        "collected": 20,
+        "html_count": 20,
+        "rss_count": 0,
+        "is_complete": true,
+        "note": "Собрано 20 из 20 запрошенных результатов."
+      },
+      {
+        "query": "лобов вадим",
+        "requested": 20,
+        "collected": 20,
+        "html_count": 20,
+        "rss_count": 0,
+        "is_complete": true,
+        "note": "Собрано 20 из 20 запрошенных результатов."
+      }
+    ],
+    "incomplete_queries": [
+      "лобов вадим университет синергия"
+    ]
+  },
+  "coverage": [
+    {
+      "query": "лобов вадим университет синергия",
+      "requested": 20,
+      "collected": 15,
+      "html_count": 15,
+      "rss_count": 0,
+      "is_complete": false,
+      "note": "Google News вернул только 15 уникальных результатов по запросу «лобов вадим университет синергия» (запрошено 20). Это предел актуальной выдачи: узкий запрос даёт меньше публикаций. HTML: 15, RSS: 0. Для расширения глубины можно: (1) добавить RU-прокси, (2) использовать Playwright/Selenium для подгрузки 2-й страницы, (3) ослабить запрос."
+    },
+    {
+      "query": "лобов вадим синергия",
+      "requested": 20,
+      "collected": 20,
+      "html_count": 20,
+      "rss_count": 0,
+      "is_complete": true,
+      "note": "Собрано 20 из 20 запрошенных результатов."
+    },
+    {
+      "query": "лобов вадим",
+      "requested": 20,
+      "collected": 20,
+      "html_count": 20,
+      "rss_count": 0,
+      "is_complete": true,
+      "note": "Собрано 20 из 20 запрошенных результатов."
+    }
+  ]
 }
