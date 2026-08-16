@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>test - Google Новости</title>
+    <item>
+      <title>Вадим Лобов: предприниматель и создатель «Синергии» - Вести Подмосковья</title>
+      <link>https://news.google.com/rss/articles/CBMiTEST1</link>
+      <pubDate>Tue, 28 May 2024 07:00:00 GMT</pubDate>
+      <description>&lt;a href="https://news.google.com/rss/articles/CBMiTEST1"&gt;Вадим Лобов: предприниматель и создатель «Синергии»&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font color="#6f6f6f"&gt;Вести Подмосковья&lt;/font&gt;</description>
+      <source url="https://vmo24.ru">Вести Подмосковья</source>
+    </item>
+    <item>
+      <title>Отдельная новость с настоящим сниппетом</title>
+      <link>https://news.google.com/rss/articles/CBMiTEST2</link>
+      <pubDate>Wed, 29 May 2024 07:00:00 GMT</pubDate>
+      <description>Это достаточно длинный сниппет Google, который не совпадает с заголовком и должен сохраниться как есть для проверки.</description>
+      <source url="https://example.com">Example</source>
+    </item>
+  </channel>
+</rss>
