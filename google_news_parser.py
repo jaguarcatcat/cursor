@@ -434,10 +434,17 @@ def analytics(results: list[Result]) -> str:
 
 def write_report(path: Path, results: list[Result], checked_at: str) -> None:
     headers = ["Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен"]
+    counts = Counter(result.query for result in results)
+    count_text = "; ".join(f"«{query}» — {count}" for query, count in counts.items())
     lines = [
         "# Срез выдачи Google News",
         "",
         f"Дата проверки: {checked_at}. Регион: Россия. Язык/интерфейс: русский.",
+        f"Получено результатов: {count_text}. Если результатов меньше заданной глубины, "
+        "Google не вернул дополнительные карточки в серверной выдаче.",
+        "HTML-карточки не содержали текстовых сниппетов; это явно отмечено в таблице. "
+        "Повторы одной публикации между разными запросами сохранены, чтобы не искажать "
+        "позиции отдельных выдач.",
         "",
         "| " + " | ".join(headers) + " |",
         "|" + "|".join("---" for _ in headers) + "|",
