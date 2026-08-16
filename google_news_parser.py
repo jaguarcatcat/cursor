@@ -37,10 +37,20 @@ USER_AGENT = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 
+DEFAULT_QUERIES_FILE = "queries.txt"
+
 DEFAULT_QUERIES = [
     "лобов вадим университет синергия",
     "лобов вадим синергия",
     "лобов вадим",
+    "лобов вадим георгиевич университет синергия",
+    "лобов вадим георгиевич синергия",
+    "лобов вадим георгиевич",
+    "вадим георгиевич лобов синергия",
+    "вадим георгиевич лобов",
+    "вадим лобов университет синергия",
+    "вадим лобов синергия",
+    "вадим лобов",
 ]
 
 NEGATIVE_KEYWORDS = [
@@ -188,6 +198,23 @@ def load_proxy_list(proxy_arg: str | None = None, proxies_file: str | None = Non
             seen.add(p)
             unique.append(p)
     return unique
+
+
+def load_queries(queries: list[str] | None = None, queries_file: str | None = None) -> list[str]:
+    if queries:
+        return queries
+
+    file_path = queries_file or os.environ.get("GNEWS_QUERIES_FILE", DEFAULT_QUERIES_FILE)
+    if Path(file_path).exists():
+        loaded: list[str] = []
+        for line in Path(file_path).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                loaded.append(line)
+        if loaded:
+            return loaded
+
+    return DEFAULT_QUERIES.copy()
 
 
 def build_search_url(query: str) -> str:
@@ -885,6 +912,7 @@ def export_to_xlsx(
 
 def run_parser(
     queries: list[str] | None = None,
+    queries_file: str | None = None,
     max_results: int = 20,
     output_xlsx: str = "results.xlsx",
     output_json: str | None = None,
@@ -892,7 +920,7 @@ def run_parser(
     proxies_file: str | None = None,
     decode_urls: bool = True,
 ) -> list[NewsResult]:
-    queries = queries or DEFAULT_QUERIES
+    queries = load_queries(queries, queries_file)
     proxy_list = load_proxy_list(proxy, proxies_file)
     rotator = ProxyRotator(proxy_list) if proxy_list else None
 
@@ -902,6 +930,7 @@ def run_parser(
 
     print(f"Дата проверки: {check_date}")
     print(f"Регион: Россия (RU), язык: русский")
+    print(f"Запросов: {len(queries)}")
     if rotator and rotator.available:
         print(f"Прокси: {rotator.count} шт. (ротация включена)")
     else:
@@ -956,7 +985,17 @@ def run_parser(
 
 def main():
     parser = argparse.ArgumentParser(description="Парсер Google News → XLSX")
-    parser.add_argument("--queries", nargs="+", default=DEFAULT_QUERIES)
+    parser.add_argument(
+        "--queries",
+        nargs="+",
+        default=None,
+        help="Поисковые запросы (если не указаны — из queries.txt)",
+    )
+    parser.add_argument(
+        "--queries-file",
+        default=DEFAULT_QUERIES_FILE,
+        help="Файл со списком запросов (по одному на строку)",
+    )
     parser.add_argument("--max-results", type=int, default=20)
     parser.add_argument("--output-xlsx", default="results.xlsx", help="Путь к XLSX-файлу")
     parser.add_argument("--output-json", default=None, help="Опциональный JSON-дамп")
@@ -979,6 +1018,7 @@ def main():
 
     run_parser(
         queries=args.queries,
+        queries_file=args.queries_file,
         max_results=args.max_results,
         output_xlsx=args.output_xlsx,
         output_json=args.output_json,

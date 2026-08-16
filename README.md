@@ -15,6 +15,8 @@ pip install -r requirements.txt
 python google_news_parser.py
 ```
 
+Запросы загружаются из `queries.txt` (11 ключевых фраз). Прокси — из `proxies.txt`.
+
 По умолчанию создаётся `results.xlsx` с листами:
 - **Результаты** — полная таблица парсинга с кликабельными URL
 - **Метаданные** — дата, регион, статистика
@@ -41,7 +43,8 @@ python google_news_parser.py --proxies-file proxies.txt --output-xlsx results.xl
 
 | Параметр | Описание | По умолчанию |
 |----------|----------|--------------|
-| `--queries` | Список поисковых запросов | 3 запроса по Лобову/Синергии |
+| `--queries-file` | Файл со списком запросов | `queries.txt` |
+| `--queries` | Запросы через CLI (перекрывает файл) | из `queries.txt` |
 | `--max-results` | Макс. результатов на запрос | 20 |
 | `--output-xlsx` | Путь к XLSX-файлу | `results.xlsx` |
 | `--output-json` | Опциональный JSON-дамп | — |
