@@ -212,7 +212,20 @@ def domain_from_url(url: str) -> str:
 
 def tokenize(text: str) -> set[str]:
     normalized = (text or "").lower().replace("ё", "е")
-    return set(re.findall(r"[а-яa-z0-9]+", normalized))
+    tokens = set(re.findall(r"[а-яa-z0-9]+", normalized))
+    folded: set[str] = set(tokens)
+    for token in tokens:
+        if token.startswith("синерг"):
+            folded.add("синергия")
+        if token.startswith("университет"):
+            folded.add("университет")
+        if token.startswith("лобов"):
+            folded.add("лобов")
+        if token.startswith("вадим"):
+            folded.add("вадим")
+        if token.startswith("synerg"):
+            folded.add("synergy")
+    return folded
 
 
 def strip_html(text: str) -> str:
@@ -785,7 +798,7 @@ def build_report(
         "- Органическая выдача Google Search не использовалась",
         "- Точные дубли одной страницы удалялись после нормализации URL; разные публикации одного СМИ сохранялись",
         "- Сниппет брался только из полей самой выдачи Google News; при отсутствии писалось «сниппет Google недоступен»",
-        f"- Источники запросов: {', '.join(sorted({meta.get('source_used') or '?'} for meta in metas))}",
+        f"- Источники запросов: {', '.join(sorted({(meta.get('source_used') or '?') for meta in metas}))}",
         "",
         "## Сводная таблица",
         "",

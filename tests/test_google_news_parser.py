@@ -102,6 +102,17 @@ class RelevanceTests(unittest.TestCase):
         )
         self.assertIn("Низкая релевантность", comment)
 
+    def test_inflected_synergy_counts_as_match(self) -> None:
+        comment = gnp.relevance_comment(
+            "лобов вадим синергия",
+            "Вадим Лобов: предприниматель и создатель «Синергии»",
+            "Вести Подмосковья",
+            "https://vmo24.ru/news/example",
+            "vmo24.ru",
+        )
+        self.assertIn("Высокая релевантность", comment)
+        self.assertIn("синергия", comment)
+
 
 class RssParserTests(unittest.TestCase):
     def test_rss_does_not_invent_google_snippet(self) -> None:
@@ -125,6 +136,13 @@ class ReportTests(unittest.TestCase):
         analytics = gnp.build_analytics(results)
         self.assertIn("Example News", analytics)
         self.assertIn("сюжет", analytics.lower())
+        report = gnp.build_report(
+            results,
+            [{"query": "q", "search_url": "https://news.google.com/search", "source_used": "google_news_html", "raw_count": 1, "returned_count": 1}],
+            "2026-08-16 00:00 MSK",
+        )
+        self.assertIn("Сводная таблица", report)
+        self.assertIn("google_news_html", report)
 
 
 if __name__ == "__main__":
