@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Сбор Google News → otchet</title>
+  <title>Сбор Google News</title>
   <style>
     :root {
       --bg: #12151a;
@@ -44,7 +44,7 @@
       font: inherit;
     }
     textarea { min-height: 110px; resize: vertical; }
-    .row { display: grid; grid-template-columns: 1fr 140px; gap: 12px; margin-top: 14px; }
+    .row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; margin-top: 14px; }
     button {
       background: var(--accent);
       color: #19160f;
@@ -75,19 +75,25 @@
       color: #cfc6b8;
       min-height: 72px;
     }
+    #token-wrap { display: none; margin-top: 14px; }
   </style>
 </head>
 <body>
 <main>
   <h1>Сбор Google News</h1>
-  <p class="lead">Откройте эту панель через <code>zapusk.bat</code> или <code>zapusk.sh</code>. Кнопка запускает срез Google Новости и кладёт документ в папку <code>otchet</code>.</p>
-  <div class="warn" id="offline">Локальный сервер не запущен. Дважды нажмите <b>zapusk.bat</b> (Windows) или <b>zapusk.sh</b> (Mac/Linux) в этой папке — браузер откроется сам. Не закрывайте чёрное окно сервера, пока собираете отчёты.</div>
+  <p class="lead">Панель работает на сервере в сети. Откройте этот адрес в браузере с любого устройства, нажмите <b>Собрать отчёт</b> — документ сохранится на сервере в каталоге <code>otchet</code> и появится в списке ниже.</p>
+  <div class="warn" id="offline">Нет связи с панелью на этом домене. Проверьте, что служба <code>google-news-otchet</code> запущена и nginx проксирует на порт 8765.</div>
+  <div class="warn" id="need-auth">Нужен ключ доступа с сервера (переменная <code>AUTH_TOKEN</code>). Введите его один раз — браузер запомнит на этой вкладке.</div>
 
   <section class="panel">
     <label for="queries">Запросы, по одному на строку</label>
     <textarea id="queries">лобов вадим университет синергия
 лобов вадим синергия
 лобов вадим</textarea>
+    <div id="token-wrap">
+      <label for="token">Ключ доступа</label>
+      <input id="token" type="password" autocomplete="off" placeholder="AUTH_TOKEN">
+    </div>
     <div class="row">
       <div>
         <label for="limit">Глубина выдачи</label>
@@ -107,18 +113,34 @@
   </section>
 
   <section class="panel">
-    <label>Документы в otchet</label>
+    <label>Отчёты на сервере</label>
     <div id="reports"><p class="hint">Пока нет сохранённых отчётов.</p></div>
   </section>
 </main>
 <script>
-  const API = location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
   const $ = (id) => document.getElementById(id);
-  let timer = null;
+  const tokenKey = "otchet_token";
 
-  async function request(path, options) {
-    const res = await fetch(API + path, options);
+  function token() {
+    return ($("token").value || sessionStorage.getItem(tokenKey) || "").trim();
+  }
+
+  function headers(json) {
+    const out = {};
+    if (json) out["Content-Type"] = "application/json";
+    const value = token();
+    if (value) out["X-Auth-Token"] = value;
+    return out;
+  }
+
+  async function request(path, options = {}) {
+    const res = await fetch(path, { credentials: "same-origin", ...options });
     const data = await res.json();
+    if (res.status === 401) {
+      $("need-auth").style.display = "block";
+      $("token-wrap").style.display = "block";
+      throw new Error(data.error || "Нужен ключ доступа");
+    }
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data;
   }
@@ -129,14 +151,19 @@
       return;
     }
     $("reports").innerHTML = "<ul>" + items.map((item) => {
-      return `<li><a href="${API + item.url}" target="_blank" rel="noopener">${item.id}</a> — ${item.modified}</li>`;
+      return `<li><a href="${item.url}" target="_blank" rel="noopener">${item.id}</a> — ${item.modified}</li>`;
     }).join("") + "</ul>";
   }
 
   async function refresh() {
     try {
-      const data = await request("/api/status");
+      const data = await request("/api/status", { headers: headers() });
       $("offline").style.display = "none";
+      if (data.auth_required) {
+        $("token-wrap").style.display = "block";
+      }
+      if (token()) sessionStorage.setItem(tokenKey, token());
+      $("need-auth").style.display = "none";
       $("log").textContent = (data.log || []).join("\n") || "сервер на связи";
       renderReports(data.reports);
       if (data.running) {
@@ -148,30 +175,37 @@
           $("status").innerHTML = '<span class="bad">' + data.error + "</span>";
         } else if (data.last) {
           $("status").innerHTML = '<span class="ok">Последний сбор: ' + data.last.checked_at + ", карточек: " + data.last.count + "</span>";
-          $("saved").innerHTML = 'Документ: <a href="' + API + data.last.report_url + '" target="_blank">открыть otchet.html</a> · папка <code>' + data.last.folder + "</code>";
+          $("saved").innerHTML = 'Документ: <a href="' + data.last.report_url + '" target="_blank">открыть отчёт</a> · <code>' + data.last.run_id + "</code>";
         }
       }
       return true;
     } catch (err) {
-      $("offline").style.display = "block";
-      $("log").textContent = "нет связи с http://127.0.0.1:8765 — запустите zapusk.bat / zapusk.sh";
+      if (String(err.message).includes("ключ")) {
+        $("offline").style.display = "none";
+        $("log").textContent = err.message;
+      } else {
+        $("offline").style.display = "block";
+        $("log").textContent = "нет связи с панелью на этом домене";
+      }
       return false;
     }
   }
 
+  $("token").value = sessionStorage.getItem(tokenKey) || "";
   $("run").addEventListener("click", async () => {
     $("run").disabled = true;
     $("status").textContent = "Запускаю сбор…";
     $("saved").textContent = "";
     try {
+      if (token()) sessionStorage.setItem(tokenKey, token());
       const queries = $("queries").value.split(/\n/).map((s) => s.trim()).filter(Boolean);
       const data = await request("/api/collect", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queries, limit: Number($("limit").value || 20) }),
+        headers: headers(true),
+        body: JSON.stringify({ queries, limit: Number($("limit").value || 20), token: token() }),
       });
       $("status").innerHTML = '<span class="ok">Готово. Карточек: ' + data.count + "</span>";
-      $("saved").innerHTML = 'Документ записан в <code>' + data.folder + '</code>. <a href="' + API + data.report_url + '" target="_blank">Открыть отчёт</a>';
+      $("saved").innerHTML = 'Сохранено как <code>' + data.run_id + '</code>. <a href="' + data.report_url + '" target="_blank">Открыть отчёт</a>';
     } catch (err) {
       $("status").innerHTML = '<span class="bad">' + err.message + "</span>";
     } finally {
@@ -180,7 +214,7 @@
   });
 
   refresh();
-  timer = setInterval(refresh, 2000);
+  setInterval(refresh, 3000);
 </script>
 </body>
 </html>

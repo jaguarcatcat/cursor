@@ -1,0 +1,16 @@
+[Unit]
+Description=Google News otchet panel
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/google-news-otchet
+EnvironmentFile=-/etc/google-news-otchet.env
+ExecStart=/usr/bin/python3 /opt/google-news-otchet/server.py --host 127.0.0.1 --port 8765 --no-browser
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
