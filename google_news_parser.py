@@ -22,6 +22,8 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
+import xlsxwriter
+
 
 DEFAULT_QUERIES = (
     "лобов вадим университет синергия",
@@ -175,6 +177,99 @@ def write_csv(results: list[NewsResult], path: Path) -> None:
         writer.writerows(rows)
 
 
+def analytics_rows(results: list[NewsResult]) -> list[tuple[str, str]]:
+    source_counts: dict[str, int] = {}
+    domain_counts: dict[str, int] = {}
+    theme_counts: dict[str, int] = {}
+    tone_counts = {"негативная": 0, "нейтральная": 0, "позитивная": 0}
+    for item in results:
+        source = item.source or "Источник не указан"
+        domain = item.domain or "Домен не указан"
+        source_counts[source] = source_counts.get(source, 0) + 1
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        theme = classify_theme(item.title)
+        theme_counts[theme] = theme_counts.get(theme, 0) + 1
+        tone_counts[classify_tone(item.title)] += 1
+    dominant_sources = ", ".join(f"{name} ({count})" for name, count in sorted(source_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:10])
+    repeated_domains = ", ".join(f"{name} ({count})" for name, count in sorted(domain_counts.items()) if count > 1)
+    themes = ", ".join(f"{name} ({count})" for name, count in sorted(theme_counts.items(), key=lambda pair: (-pair[1], pair[0])))
+    top_results = "; ".join(
+        f"«{item.title}» ({item.source}, позиция {item.position}, запрос: {item.query})"
+        for item in results if item.position <= 2
+    )
+    return [
+        ("Доминирующие СМИ", dominant_sources or "нет результатов"),
+        ("Повторяющиеся домены", repeated_domains or "нет"),
+        ("Темы/интенты (эвристика по заголовкам)", themes or "нет результатов"),
+        ("Тональность (эвристика по явным словам)", ", ".join(f"{name} — {count}" for name, count in tone_counts.items())),
+        ("Наиболее заметные публикации", top_results or "нет"),
+        ("Источники информационного фона", dominant_sources or "нет результатов"),
+    ]
+
+
+def write_xlsx(results: list[NewsResult], path: Path, checked_at: datetime) -> None:
+    """Write a formatted workbook suitable for filtering and review in Excel."""
+    workbook = xlsxwriter.Workbook(path)
+    title_format = workbook.add_format({"bold": True, "font_size": 14})
+    note_format = workbook.add_format({"text_wrap": True, "valign": "top"})
+    date_format = workbook.add_format({"num_format": "yyyy-mm-dd hh:mm", "valign": "top"})
+    header_format = workbook.add_format({"bold": True, "bg_color": "#1F4E78", "font_color": "#FFFFFF", "valign": "vcenter"})
+    wrapped_format = workbook.add_format({"text_wrap": True, "valign": "top"})
+    link_format = workbook.add_format({"font_color": "#0563C1", "underline": 1, "text_wrap": True, "valign": "top"})
+
+    summary = workbook.add_worksheet("Сводка")
+    summary.set_column("A:A", 37)
+    summary.set_column("B:B", 110)
+    summary.write("A1", "Срез Google Новости", title_format)
+    summary.write("A3", "Проверено")
+    summary.write_datetime("B3", checked_at.replace(tzinfo=None), date_format)
+    summary.write("A4", "Параметры")
+    summary.write("B4", "Google News RSS; hl=ru, gl=RU, ceid=RU:ru; максимум 20 результатов на запрос.", note_format)
+    summary.write("A6", "Показатель", header_format)
+    summary.write("B6", "Значение", header_format)
+    for row, values in enumerate(analytics_rows(results), start=6):
+        summary.write(row, 0, values[0], wrapped_format)
+        summary.write(row, 1, values[1], note_format)
+    summary.write("A14", "Ограничения источника", header_format)
+    summary.write("B14", "RSS Google News не передаёт точный UI-сниппет, прямой URL СМИ или надёжный признак объединённого сюжета. Эти данные не подменяются догадками.", note_format)
+    summary.set_row(13, 50)
+
+    worksheet = workbook.add_worksheet("Результаты")
+    headers = (
+        "Поисковый запрос", "Позиция", "Заголовок новости", "СМИ / источник", "Дата публикации",
+        "Сниппет", "URL публикации", "Домен", "Тип результата", "Комментарий о релевантности",
+        "Новостной сюжет", "URL Google News",
+    )
+    worksheet.freeze_panes(1, 0)
+    worksheet.autofilter(0, 0, len(results), len(headers) - 1)
+    worksheet.set_column(0, 0, 29)
+    worksheet.set_column(1, 1, 9)
+    worksheet.set_column(2, 2, 52)
+    worksheet.set_column(3, 3, 26)
+    worksheet.set_column(4, 4, 22)
+    worksheet.set_column(5, 5, 28)
+    worksheet.set_column(6, 6, 55)
+    worksheet.set_column(7, 7, 20)
+    worksheet.set_column(8, 8, 28)
+    worksheet.set_column(9, 10, 47)
+    worksheet.set_column(11, 11, 55)
+    for column, header in enumerate(headers):
+        worksheet.write(0, column, header, header_format)
+    for row, item in enumerate(results, start=1):
+        values = (
+            item.query, item.position, item.title, item.source, item.publication_date, item.snippet,
+            item.publication_url, item.domain, item.result_type, item.relevance_comment,
+            item.story_cluster, item.google_news_url,
+        )
+        for column, value in enumerate(values):
+            if column in (6, 11) and value.startswith(("http://", "https://")):
+                worksheet.write_url(row, column, value, link_format, value)
+            else:
+                worksheet.write(row, column, value, wrapped_format)
+        worksheet.set_row(row, 55)
+    workbook.close()
+
+
 def write_markdown(results: list[NewsResult], path: Path, checked_at: datetime) -> None:
     columns = ("Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен")
     report = [
@@ -202,29 +297,17 @@ def write_markdown(results: list[NewsResult], path: Path, checked_at: datetime) 
         "",
         "Полные поля (тип результата, релевантность, кластер, Google URL) находятся в сопутствующем CSV.",
     ])
-    source_counts: dict[str, int] = {}
-    domain_counts: dict[str, int] = {}
-    theme_counts: dict[str, int] = {}
-    tone_counts = {"негативная": 0, "нейтральная": 0, "позитивная": 0}
-    for item in results:
-        source_counts[item.source or "Источник не указан"] = source_counts.get(item.source or "Источник не указан", 0) + 1
-        domain_counts[item.domain or "Домен не указан"] = domain_counts.get(item.domain or "Домен не указан", 0) + 1
-        theme_counts[classify_theme(item.title)] = theme_counts.get(classify_theme(item.title), 0) + 1
-        tone_counts[classify_tone(item.title)] += 1
-    dominant_sources = ", ".join(f"{name} ({count})" for name, count in sorted(source_counts.items(), key=lambda pair: (-pair[1], pair[0]))[:10])
-    repeated_domains = ", ".join(f"{name} ({count})" for name, count in sorted(domain_counts.items()) if count > 1)
-    themes = ", ".join(f"{name} ({count})" for name, count in sorted(theme_counts.items(), key=lambda pair: (-pair[1], pair[0])))
-    top_results = "; ".join(f"«{item.title}» ({item.source}, позиция {item.position}, запрос: {item.query})" for item in results if item.position <= 2)
+    analytics = dict(analytics_rows(results))
     report.extend([
         "",
         "## Краткая аналитика",
         "",
-        f"- Доминирующие СМИ: {dominant_sources or 'нет результатов'}.",
-        f"- Повторяющиеся домены: {repeated_domains or 'нет'}. Если RSS не раскрыл URL издателя, здесь будет домен Google News, а не домен СМИ.",
-        f"- Преобладающие темы/интенты (эвристика по заголовкам): {themes or 'нет результатов'}.",
-        f"- Тональность заголовков (эвристика по явным словам): негативная — {tone_counts['негативная']}, нейтральная — {tone_counts['нейтральная']}, позитивная — {tone_counts['позитивная']}.",
-        f"- Наиболее заметные публикации (верхние позиции каждого запроса): {top_results or 'нет'}.",
-        f"- Источники, формирующие информационный фон: {dominant_sources or 'нет результатов'}.",
+        f"- Доминирующие СМИ: {analytics['Доминирующие СМИ']}.",
+        f"- Повторяющиеся домены: {analytics['Повторяющиеся домены']}. Если RSS не раскрыл URL издателя, здесь будет домен Google News, а не домен СМИ.",
+        f"- Преобладающие темы/интенты: {analytics['Темы/интенты (эвристика по заголовкам)']}.",
+        f"- Тональность заголовков: {analytics['Тональность (эвристика по явным словам)']}.",
+        f"- Наиболее заметные публикации (верхние позиции каждого запроса): {analytics['Наиболее заметные публикации']}.",
+        f"- Источники, формирующие информационный фон: {analytics['Источники информационного фона']}.",
     ])
     path.write_text("\n".join(report) + "\n", encoding="utf-8")
 
@@ -255,6 +338,7 @@ def main() -> int:
 
     write_csv(results, args.output_dir / "google_news_results.csv")
     write_markdown(results, args.output_dir / "google_news_report.md", checked_at)
+    write_xlsx(results, args.output_dir / "google_news_results.xlsx", checked_at)
     print(f"Wrote {len(results)} rows to {args.output_dir}", file=sys.stderr)
     return 0 if results else 1
 
