@@ -141,13 +141,17 @@ class ProxyRotator:
     def mark_failed(self, proxy: str) -> None:
         self._failed.add(proxy)
 
-    def create_session(self, proxy: str | None = None) -> requests.Session:
+    def create_session(self, proxy: str | None = "__auto__") -> requests.Session:
         session = requests.Session()
         session.headers.update({
             "User-Agent": USER_AGENT,
             "Accept-Language": "ru-RU,ru;q=0.9",
         })
-        chosen = proxy or self.next_proxy()
+        chosen: str | None
+        if proxy == "__auto__":
+            chosen = self.next_proxy()
+        else:
+            chosen = proxy
         if chosen:
             session.proxies.update({"http": chosen, "https": chosen})
         return session
@@ -156,27 +160,28 @@ class ProxyRotator:
         last_error: Exception | None = None
         tried: set[str] = set()
 
-        for _ in range(max_retries):
-            proxy = self.next_proxy()
-            if proxy and proxy in tried and len(tried) >= len(self._proxies):
-                break
-            if proxy:
-                tried.add(proxy)
-
-            session = self.create_session(proxy)
-            try:
-                response = session.get(url, timeout=30)
-                response.raise_for_status()
-                return response.text
-            except requests.RequestException as exc:
-                last_error = exc
-                if proxy:
+        if self._proxies:
+            for proxy in list(self._proxies)[:2]:
+                session = self.create_session(proxy=proxy)
+                try:
+                    response = session.get(url, timeout=10)
+                    response.raise_for_status()
+                    return response.text
+                except requests.RequestException as exc:
+                    last_error = exc
                     self.mark_failed(proxy)
-                time.sleep(0.5)
 
-        if last_error:
-            raise last_error
-        raise requests.RequestException(f"Не удалось загрузить {url}")
+        session = self.create_session(proxy=None)
+        try:
+            response = session.get(url, timeout=30)
+            response.raise_for_status()
+            if self._proxies:
+                print("  [i] Прокси недоступны, используется прямое подключение", file=sys.stderr)
+            return response.text
+        except requests.RequestException as exc:
+            if last_error:
+                raise last_error from exc
+            raise
 
 
 def load_proxy_list(proxy_arg: str | None = None, proxies_file: str | None = None) -> list[str]:
