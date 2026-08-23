@@ -1047,6 +1047,7 @@ def collect(
     from_html: str | None = None,
     query: str | None = None,
     pause: float = 1.0,
+    compare_with: str | None = None,
 ) -> dict[str, Any]:
     selected_queries = queries or DEFAULT_QUERIES
     checked_at = moscow_now().strftime("%Y-%m-%d %H:%M %Z")
@@ -1085,6 +1086,23 @@ def collect(
     run_dir = new_run_dir(root)
     files = write_run_files(all_results, report, html_report, run_dir, metas)
     latest = copy_latest(run_dir, root)
+    try:
+        import serp_xlsx
+
+        current_rows = [asdict(item) for item in all_results]
+        files["xlsx"] = str(serp_xlsx.write_current_xlsx(current_rows, run_dir / "vydacha.xlsx"))
+        previous_path = Path(compare_with) if compare_with else None
+        if previous_path and previous_path.exists():
+            previous_rows = serp_xlsx.load_rows(previous_path)
+            files["compare_xlsx"] = str(
+                serp_xlsx.write_comparison_xlsx(
+                    previous_rows,
+                    current_rows,
+                    run_dir / "sravnenie.xlsx",
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("XLSX export skipped: %s", exc)
     return {
         "checked_at": checked_at,
         "run_id": run_dir.name,
@@ -1106,6 +1124,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--query", help="Запрос для режима --from-html")
     parser.add_argument("--pause", type=float, default=1.0, help="Пауза между живыми запросами")
     parser.add_argument("--quiet", action="store_true", help="Не печатать отчёт в консоль")
+    parser.add_argument("--compare-with", help="JSON предыдущего скрининга для XLSX-сравнения")
     return parser.parse_args(argv)
 
 
@@ -1119,6 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
         from_html=args.from_html,
         query=args.query,
         pause=args.pause,
+        compare_with=args.compare_with,
     )
     if not args.quiet:
         print(result["report_md"])

@@ -47,6 +47,15 @@ AUTH_TOKEN=секрет python3 server.py --host 0.0.0.0 --port 8765 --no-browse
 
 Тогда панель доступна как `http://IP-сервера:8765/`. Для домена лучше nginx, как в `install-debian.sh`.
 
+## Сравнение срезов в Excel
+
+```bash
+python3 google_news_parser.py --compare-with output/google_news_results.json --quiet
+python3 serp_xlsx.py --previous output/google_news_results.json --current otchet/ДАТА/dannye.json --output output/sravnenie_vydachi.xlsx
+```
+
+Файл XLSX содержит сводку, новые/выпавшие URL, сдвиги позиций и оба полных среза.
+
 ## Служба
 
 ```bash

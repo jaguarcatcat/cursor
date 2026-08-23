@@ -69,6 +69,7 @@ class OtchetCollectTests(unittest.TestCase):
             self.assertEqual(latest.name, "posledniy.html")
             self.assertTrue((Path(result["folder"]) / "dannye.csv").exists())
             self.assertTrue((Path(result["folder"]) / "otchet.md").exists())
+            self.assertTrue((Path(result["folder"]) / "vydacha.xlsx").exists())
             runs = gnp.list_otchet_runs(Path(tmp))
             self.assertEqual(len(runs), 1)
             self.assertEqual(runs[0]["id"], result["run_id"])
