@@ -211,12 +211,125 @@ def _card_row(item: dict[str, Any]) -> list[Any]:
 CARD_HEADERS = ["Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен", "Тип", "Релевантность"]
 
 
+def snapshot_map(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    return {row_key(item): item for item in rows if row_key(item)[1]}
+
+
+def trajectory_label(positions: list[int | None]) -> str:
+    present = [pos for pos in positions if pos is not None]
+    if not present:
+        return "нет данных"
+    if positions[-1] is None:
+        return "выпала в последнем срезе"
+    if positions[0] is None:
+        return "появилась позже первого среза"
+    if all(pos == present[0] for pos in present):
+        return "стабильна"
+    first, last = present[0], present[-1]
+    if last < first:
+        return "в итоге выше"
+    if last > first:
+        return "в итоге ниже"
+    return "колебалась"
+
+
+def build_trend(
+    snapshots: list[tuple[str, list[dict[str, Any]]]],
+) -> tuple[list[str], list[list[Any]]]:
+    maps = [(label, snapshot_map(rows)) for label, rows in snapshots]
+    keys: set[tuple[str, str]] = set()
+    for _label, mapping in maps:
+        keys |= set(mapping)
+    headers = (
+        ["Запрос", "Заголовок", "СМИ", "Домен", "URL"]
+        + [f"Позиция: {label}" for label, _rows in snapshots]
+        + ["Траектория"]
+    )
+    rows: list[list[Any]] = []
+    for key in sorted(keys):
+        latest = None
+        positions: list[int | None] = []
+        pos_cells: list[Any] = []
+        for _label, mapping in maps:
+            item = mapping.get(key)
+            if item:
+                latest = item
+                number = position_number(item.get("position"))
+                positions.append(number)
+                pos_cells.append(item.get("position"))
+            else:
+                positions.append(None)
+                pos_cells.append("—")
+        if latest is None:
+            continue
+        rows.append(
+            [
+                key[0],
+                latest.get("title"),
+                latest.get("source"),
+                latest.get("domain"),
+                latest.get("url") or key[1],
+                *pos_cells,
+                trajectory_label(positions),
+            ]
+        )
+    return headers, rows
+
+
+def build_analytics_lines(
+    previous: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+    cmp: dict[str, Any],
+) -> list[list[Any]]:
+    tone_prev = Counter(gnp.classify_tone(str(item.get("title") or ""), str(item.get("url") or ""), str(item.get("snippet") or "")) for item in previous)
+    tone_curr = Counter(gnp.classify_tone(str(item.get("title") or ""), str(item.get("url") or ""), str(item.get("snippet") or "")) for item in current)
+    topic_curr = Counter(gnp.classify_topic(str(item.get("title") or ""), str(item.get("url") or "")) for item in current)
+    source_curr = Counter(str(item.get("source") or "") for item in current)
+    lines = [
+        ["Блок", "Вывод"],
+        ["Период сравнения", f"{cmp.get('previous_at')} → {cmp.get('current_at')}"],
+        ["Объём выдачи", f"{cmp['prev_count']} → {cmp['curr_count']} карточек"],
+        ["Стабильность URL", f"сохранились {cmp['stable_count']}, новых {cmp['new_count']}, выпало {cmp['gone_count']}"],
+        ["Движение позиций", f"поднялись {cmp['rose']}, опустились {cmp['fell']}, без сдвига {cmp['unchanged']}"],
+        [
+            "Тональность было / стало",
+            "; ".join(
+                f"{name}: {tone_prev.get(name, 0)} → {tone_curr.get(name, 0)}"
+                for name in sorted(set(tone_prev) | set(tone_curr))
+            ),
+        ],
+        ["Темы сейчас", "; ".join(f"{name} ({count})" for name, count in topic_curr.most_common(8))],
+        ["Доминирующие СМИ", "; ".join(f"{name} ({count})" for name, count in source_curr.most_common(8))],
+    ]
+    for item in cmp["by_query"]:
+        top_note = "топ-1 тот же" if item["top1_same"] else "сменился топ-1"
+        lines.append(
+            [
+                f"Запрос «{item['query']}»",
+                f"{item['prev_count']} → {item['curr_count']}; пересечение {item['overlap']}; новых {item['new']}; выпало {item['gone']}; {top_note}.",
+            ]
+        )
+        if not item["top1_same"]:
+            lines.append(["  топ-1 было", item["top1_prev"]])
+            lines.append(["  топ-1 стало", item["top1_curr"]])
+    visible_new = [
+        f"[{item.get('query')} / #{item.get('position')}] {item.get('title')} — {item.get('source')}"
+        for item in cmp["new_rows"]
+        if position_number(item.get("position")) is not None and position_number(item.get("position")) <= 5
+    ]
+    if visible_new:
+        lines.append(["Новые в топ-5", " | ".join(visible_new[:8])])
+    return lines
+
+
 def write_comparison_xlsx(
     previous: list[dict[str, Any]],
     current: list[dict[str, Any]],
     path: Path,
     previous_label: str = "предыдущий скрининг",
     current_label: str = "актуальный срез",
+    baseline: list[dict[str, Any]] | None = None,
+    baseline_label: str = "первый скрининг",
 ) -> Path:
     cmp = compare_rows(previous, current)
     path = Path(path)
@@ -345,6 +458,20 @@ def write_comparison_xlsx(
         [[item["domain"], item["prev"], item["curr"], item["delta"]] for item in cmp["domains"]],
     )
 
+    analytics_sheet = book.create_sheet("Аналитика")
+    _write_rows(analytics_sheet, ["Блок", "Вывод"], build_analytics_lines(previous, current, cmp)[1:])
+
+    if baseline:
+        trend_headers, trend_rows = build_trend(
+            [
+                (baseline_label, baseline),
+                (previous_label, previous),
+                (current_label, current),
+            ]
+        )
+        trend_sheet = book.create_sheet("Динамика 3 срезов")
+        _write_rows(trend_sheet, trend_headers, trend_rows)
+
     book.save(path)
     return path
 
@@ -365,6 +492,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--previous", required=True, help="JSON предыдущего скрининга")
     parser.add_argument("--current", required=True, help="JSON актуального среза")
     parser.add_argument("--output", required=True, help="Путь к XLSX")
+    parser.add_argument("--baseline", help="JSON первого скрининга для листа динамики")
     return parser.parse_args(argv)
 
 
@@ -372,7 +500,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     previous = load_rows(Path(args.previous))
     current = load_rows(Path(args.current))
-    path = write_comparison_xlsx(previous, current, Path(args.output))
+    baseline = load_rows(Path(args.baseline)) if args.baseline else None
+    path = write_comparison_xlsx(
+        previous,
+        current,
+        Path(args.output),
+        baseline=baseline,
+    )
     print(path)
     return 0
 

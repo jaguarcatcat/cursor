@@ -98,6 +98,26 @@ class CompareTests(unittest.TestCase):
             self.assertEqual(book["Новые"].max_row, 2)
             self.assertEqual(book["Выпавшие"].max_row, 2)
             self.assertEqual(book["Актуальный срез"].max_row, 3)
+            self.assertIn("Аналитика", book.sheetnames)
+
+    def test_trend_marks_drop_and_new(self) -> None:
+        mid = [
+            {
+                "query": "лобов вадим",
+                "position": "2",
+                "title": "Старый топ",
+                "source": "Sostav.ru",
+                "url": "https://sostav.ru/blogs/1",
+                "domain": "sostav.ru",
+            }
+        ]
+        headers, rows = serp_xlsx.build_trend(
+            [("t1", PREV), ("t2", mid), ("t3", CURR)]
+        )
+        self.assertIn("Траектория", headers)
+        by_title = {row[1]: row[-1] for row in rows}
+        self.assertEqual(by_title["Выпадет"], "выпала в последнем срезе")
+        self.assertEqual(by_title["Новый топ"], "появилась позже первого среза")
 
 
 if __name__ == "__main__":
