@@ -1089,6 +1089,23 @@ def collect(
             all_results.extend(results)
             metas.append(meta)
 
+    previous_rows: list[dict[str, Any]] | None = None
+    if compare_with:
+        previous_path = Path(compare_with)
+        if previous_path.exists():
+            try:
+                import serp_xlsx
+
+                previous_rows = serp_xlsx.load_rows(previous_path)
+                enriched = serp_xlsx.enrich_publisher_urls(
+                    [asdict(item) for item in all_results], previous_rows
+                )
+                for item, row in zip(all_results, enriched):
+                    item.url = str(row.get("url") or item.url)
+                    item.domain = str(row.get("domain") or item.domain)
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("Previous snapshot / URL enrichment skipped: %s", exc)
+
     report = build_report(all_results, metas, checked_at)
     html_report = build_html_report(all_results, metas, checked_at, report)
     root = Path(output_root)
@@ -1100,9 +1117,7 @@ def collect(
 
         current_rows = [asdict(item) for item in all_results]
         files["xlsx"] = str(serp_xlsx.write_current_xlsx(current_rows, run_dir / "vydacha.xlsx"))
-        previous_path = Path(compare_with) if compare_with else None
-        if previous_path and previous_path.exists():
-            previous_rows = serp_xlsx.load_rows(previous_path)
+        if previous_rows:
             files["compare_xlsx"] = str(
                 serp_xlsx.write_comparison_xlsx(
                     previous_rows,

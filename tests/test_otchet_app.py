@@ -9,6 +9,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from dataclasses import asdict
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -73,6 +74,25 @@ class OtchetCollectTests(unittest.TestCase):
             runs = gnp.list_otchet_runs(Path(tmp))
             self.assertEqual(len(runs), 1)
             self.assertEqual(runs[0]["id"], result["run_id"])
+
+    def test_collect_writes_comparison_xlsx_when_previous_snapshot_exists(self) -> None:
+        html = (FIXTURES / "sample_search.html").read_text(encoding="utf-8")
+        parsed = gnp.parse_html_results(html, "лобов вадим университет синергия", "2026-08-16T00:00:00+03:00")
+        main = next(item for item in parsed if item.google_article_id == "IDMAIN")
+        with tempfile.TemporaryDirectory() as tmp:
+            prev_path = Path(tmp) / "prev.json"
+            prev_path.write_text(json.dumps([asdict(main)], ensure_ascii=False), encoding="utf-8")
+            result = gnp.collect(
+                queries=["лобов вадим университет синергия"],
+                limit=20,
+                output_root=Path(tmp) / "otchet",
+                from_html=str(FIXTURES / "sample_search.html"),
+                query="лобов вадим университет синергия",
+                compare_with=str(prev_path),
+                pause=0,
+            )
+            self.assertIn("compare_xlsx", result["files"])
+            self.assertTrue(Path(result["files"]["compare_xlsx"]).exists())
 
 
 class WebPanelTests(unittest.TestCase):
