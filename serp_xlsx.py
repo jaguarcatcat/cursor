@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter, defaultdict
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,98 @@ def row_key(item: dict[str, Any]) -> tuple[str, str]:
     return (str(item.get("query") or ""), gnp.canonical_url(str(item.get("url") or "")))
 
 
+def article_id_from_item(item: dict[str, Any]) -> str:
+    ident = str(item.get("google_article_id") or "").strip()
+    if ident:
+        return ident
+    for field in ("url", "google_news_url"):
+        match = re.search(r"/articles/([A-Za-z0-9_-]+)", str(item.get(field) or ""))
+        if match:
+            return match.group(1)
+    return ""
+
+
+def norm_title(item: dict[str, Any]) -> str:
+    title = (item.get("title") or "").lower().replace("ё", "е")
+    title = re.sub(r"[^а-яa-z0-9]+", " ", title)
+    return " ".join(title.split())
+
+
+def match_keys(item: dict[str, Any]) -> list[tuple[str, str, str]]:
+    query = str(item.get("query") or "")
+    keys: list[tuple[str, str, str]] = []
+    url = gnp.canonical_url(str(item.get("url") or ""))
+    if url and "news.google.com" not in url:
+        keys.append(("url", query, url))
+    article_id = article_id_from_item(item)
+    if article_id:
+        keys.append(("id", query, article_id))
+    title = norm_title(item)
+    if title:
+        keys.append(("title", query, title))
+    return keys
+
+
+def pair_rows(
+    previous: list[dict[str, Any]], current: list[dict[str, Any]]
+) -> tuple[list[tuple[dict[str, Any], dict[str, Any]]], list[dict[str, Any]], list[dict[str, Any]]]:
+    used_prev: set[int] = set()
+    used_curr: set[int] = set()
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for kind in ("url", "id", "title"):
+        index: dict[tuple[str, str, str], int] = {}
+        for i, item in enumerate(previous):
+            if i in used_prev:
+                continue
+            for key in match_keys(item):
+                if key[0] == kind:
+                    index[key] = i
+        for j, item in enumerate(current):
+            if j in used_curr:
+                continue
+            for key in match_keys(item):
+                if key[0] != kind or key not in index:
+                    continue
+                i = index[key]
+                if i in used_prev:
+                    continue
+                used_prev.add(i)
+                used_curr.add(j)
+                pairs.append((previous[i], current[j]))
+                break
+    new_rows = [item for j, item in enumerate(current) if j not in used_curr]
+    gone_rows = [item for i, item in enumerate(previous) if i not in used_prev]
+    return pairs, new_rows, gone_rows
+
+
+def enrich_publisher_urls(current: list[dict[str, Any]], *known: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    by_title: dict[tuple[str, str], dict[str, Any]] = {}
+    for rows in known:
+        for item in rows:
+            url = str(item.get("url") or "")
+            if not url or "news.google.com" in url:
+                continue
+            ident = article_id_from_item(item)
+            if ident:
+                by_id[ident] = item
+            title = norm_title(item)
+            if title:
+                by_title[(str(item.get("query") or ""), title)] = item
+    enriched: list[dict[str, Any]] = []
+    for item in current:
+        copy = dict(item)
+        if "news.google.com" in str(copy.get("url") or ""):
+            known_item = by_id.get(article_id_from_item(copy)) or by_title.get(
+                (str(copy.get("query") or ""), norm_title(copy))
+            )
+            if known_item:
+                copy["url"] = known_item.get("url") or copy.get("url")
+                copy["domain"] = known_item.get("domain") or gnp.domain_from_url(str(copy["url"]))
+        enriched.append(copy)
+    return enriched
+
+
 def fetched_label(rows: list[dict[str, Any]], fallback: str = "") -> str:
     for item in rows:
         if item.get("fetched_at"):
@@ -58,17 +151,10 @@ def fetched_label(rows: list[dict[str, Any]], fallback: str = "") -> str:
 
 
 def compare_rows(previous: list[dict[str, Any]], current: list[dict[str, Any]]) -> dict[str, Any]:
-    prev_map = {row_key(item): item for item in previous if row_key(item)[1]}
-    curr_map = {row_key(item): item for item in current if row_key(item)[1]}
-    shared_keys = sorted(set(prev_map) & set(curr_map))
-    new_keys = sorted(set(curr_map) - set(prev_map))
-    gone_keys = sorted(set(prev_map) - set(curr_map))
-
+    pairs, new_rows, gone_rows = pair_rows(previous, current)
     stayed: list[dict[str, Any]] = []
     rose = fell = unchanged = 0
-    for key in shared_keys:
-        prev_item = prev_map[key]
-        curr_item = curr_map[key]
+    for prev_item, curr_item in pairs:
         prev_pos = position_number(prev_item.get("position"))
         curr_pos = position_number(curr_item.get("position"))
         delta = None
@@ -88,9 +174,9 @@ def compare_rows(previous: list[dict[str, Any]], current: list[dict[str, Any]]) 
             unchanged += 1
         stayed.append(
             {
-                "query": key[0],
+                "query": curr_item.get("query") or prev_item.get("query"),
                 "url": curr_item.get("url") or prev_item.get("url"),
-                "canonical_url": key[1],
+                "canonical_url": gnp.canonical_url(str(curr_item.get("url") or prev_item.get("url") or "")),
                 "title": curr_item.get("title"),
                 "source": curr_item.get("source"),
                 "domain": curr_item.get("domain"),
@@ -109,10 +195,7 @@ def compare_rows(previous: list[dict[str, Any]], current: list[dict[str, Any]]) 
     for query in queries:
         prev_q = [item for item in previous if item.get("query") == query]
         curr_q = [item for item in current if item.get("query") == query]
-        prev_urls = {gnp.canonical_url(str(item.get("url") or "")) for item in prev_q}
-        curr_urls = {gnp.canonical_url(str(item.get("url") or "")) for item in curr_q}
-        prev_urls.discard("")
-        curr_urls.discard("")
+        overlap = sum(1 for prev_item, curr_item in pairs if (curr_item.get("query") or prev_item.get("query")) == query)
         top_prev = next((item.get("title") for item in prev_q if str(item.get("position")) == "1"), "")
         top_curr = next((item.get("title") for item in curr_q if str(item.get("position")) == "1"), "")
         by_query.append(
@@ -120,9 +203,9 @@ def compare_rows(previous: list[dict[str, Any]], current: list[dict[str, Any]]) 
                 "query": query,
                 "prev_count": len(prev_q),
                 "curr_count": len(curr_q),
-                "overlap": len(prev_urls & curr_urls),
-                "new": len(curr_urls - prev_urls),
-                "gone": len(prev_urls - curr_urls),
+                "overlap": overlap,
+                "new": len(curr_q) - overlap,
+                "gone": len(prev_q) - overlap,
                 "top1_same": bool(top_prev and top_prev == top_curr),
                 "top1_prev": top_prev,
                 "top1_curr": top_curr,
@@ -149,15 +232,15 @@ def compare_rows(previous: list[dict[str, Any]], current: list[dict[str, Any]]) 
         "current_at": fetched_label(current),
         "prev_count": len(previous),
         "curr_count": len(current),
-        "new_count": len(new_keys),
-        "gone_count": len(gone_keys),
-        "stable_count": len(shared_keys),
+        "new_count": len(new_rows),
+        "gone_count": len(gone_rows),
+        "stable_count": len(pairs),
         "rose": rose,
         "fell": fell,
         "unchanged": unchanged,
         "stayed": stayed,
-        "new_rows": [curr_map[key] for key in new_keys],
-        "gone_rows": [prev_map[key] for key in gone_keys],
+        "new_rows": new_rows,
+        "gone_rows": gone_rows,
         "by_query": by_query,
         "domains": domain_rows,
     }
@@ -211,8 +294,27 @@ def _card_row(item: dict[str, Any]) -> list[Any]:
 CARD_HEADERS = ["Запрос", "Позиция", "Заголовок", "СМИ", "Дата", "Сниппет", "URL", "Домен", "Тип", "Релевантность"]
 
 
-def snapshot_map(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
-    return {row_key(item): item for item in rows if row_key(item)[1]}
+def stable_identity(item: dict[str, Any]) -> tuple[str, str, str] | None:
+    query = str(item.get("query") or "")
+    article_id = article_id_from_item(item)
+    if article_id:
+        return (query, "id", article_id)
+    title = norm_title(item)
+    if title:
+        return (query, "title", title)
+    url = gnp.canonical_url(str(item.get("url") or ""))
+    if url:
+        return (query, "url", url)
+    return None
+
+
+def snapshot_map(rows: list[dict[str, Any]]) -> dict[tuple[str, str, str], dict[str, Any]]:
+    mapping: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for item in rows:
+        key = stable_identity(item)
+        if key:
+            mapping[key] = item
+    return mapping
 
 
 def trajectory_label(positions: list[int | None]) -> str:
@@ -331,6 +433,8 @@ def write_comparison_xlsx(
     baseline: list[dict[str, Any]] | None = None,
     baseline_label: str = "первый скрининг",
 ) -> Path:
+    current = enrich_publisher_urls(current, previous, *( [baseline] if baseline else [] ))
+    previous = enrich_publisher_urls(previous, *( [baseline] if baseline else [] ))
     cmp = compare_rows(previous, current)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

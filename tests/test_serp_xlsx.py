@@ -100,6 +100,33 @@ class CompareTests(unittest.TestCase):
             self.assertEqual(book["Актуальный срез"].max_row, 3)
             self.assertIn("Аналитика", book.sheetnames)
 
+    def test_matches_google_rss_url_to_publisher_card(self) -> None:
+        previous = [
+            {
+                "query": "лобов вадим",
+                "position": "1",
+                "title": "Подкаст про Лобова",
+                "source": "Sostav.ru",
+                "url": "https://www.sostav.ru/blogs/289047/94470",
+                "domain": "sostav.ru",
+                "google_article_id": "CBMiTESTID",
+            }
+        ]
+        current = [
+            {
+                "query": "лобов вадим",
+                "position": "2",
+                "title": "Подкаст про Лобова",
+                "source": "Sostav.ru",
+                "url": "https://news.google.com/rss/articles/CBMiTESTID?oc=5",
+                "domain": "news.google.com",
+            }
+        ]
+        cmp = serp_xlsx.compare_rows(previous, current)
+        self.assertEqual(cmp["stable_count"], 1)
+        self.assertEqual(cmp["new_count"], 0)
+        self.assertEqual(cmp["stayed"][0]["delta"], 1)
+
     def test_trend_marks_drop_and_new(self) -> None:
         mid = [
             {

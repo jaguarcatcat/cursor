@@ -357,7 +357,8 @@ def http_get(url: str, timeout: int = 30, retries: int = 3) -> bytes:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             last_error = exc
             LOGGER.warning("GET %s failed (attempt %s/%s): %s", url, attempt, retries, exc)
-            time.sleep(1.5 * attempt)
+            code = getattr(exc, "code", None)
+            time.sleep(8 * attempt if code == 429 else 1.5 * attempt)
     raise RuntimeError(f"Не удалось загрузить {url}: {last_error}") from last_error
 
 
@@ -586,6 +587,9 @@ def parse_rss(xml_text: str, query: str, fetched_at: str) -> list[NewsResult]:
         if source and title.endswith(f" - {source}"):
             title = title[: -len(source) - 3].strip()
         google_url = (item.findtext("link") or "").strip()
+        guid = (item.findtext("guid") or "").strip()
+        article_id_match = re.search(r"/articles/([A-Za-z0-9_-]+)", google_url)
+        article_id = article_id_match.group(1) if article_id_match else guid
         description = item.findtext("description") or ""
         snippet = snippet_or_unavailable(description, title, source)
         results.append(
@@ -595,6 +599,7 @@ def parse_rss(xml_text: str, query: str, fetched_at: str) -> list[NewsResult]:
                 title=title,
                 source=source or "не указано",
                 url=google_url,
+                google_article_id=article_id,
                 published_at=format_timestamp(item.findtext("pubDate") or ""),
                 snippet=snippet,
                 domain=domain_from_url(google_url) or "news.google.com",
@@ -657,13 +662,17 @@ def fetch_query_results(query: str, limit: int, pause_sec: float = 1.0) -> tuple
         "fetched_at": fetched_at,
         "locale": {"hl": "ru", "gl": "RU", "ceid": "RU:ru"},
     }
-    html = http_get(meta["search_url"]).decode("utf-8", errors="replace")
-    results = parse_html_results(html, query, fetched_at)
-    if results:
-        meta["source_used"] = "google_news_html"
-        meta["raw_count"] = len(results)
-    else:
-        LOGGER.warning("HTML parse empty for %r, falling back to RSS", query)
+    results: list[NewsResult] = []
+    try:
+        html = http_get(meta["search_url"], retries=1).decode("utf-8", errors="replace")
+        results = parse_html_results(html, query, fetched_at)
+        if results:
+            meta["source_used"] = "google_news_html"
+            meta["raw_count"] = len(results)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("HTML fetch failed for %r: %s", query, exc)
+    if not results:
+        LOGGER.warning("Falling back to Google News RSS for %r", query)
         rss = http_get(meta["rss_url"]).decode("utf-8", errors="replace")
         results = parse_rss(rss, query, fetched_at)
         meta["source_used"] = "google_news_rss_fallback"
