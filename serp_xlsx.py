@@ -424,6 +424,67 @@ def build_analytics_lines(
     return lines
 
 
+def build_summary_table(cmp: dict[str, Any]) -> tuple[list[list[Any]], list[PatternFill | None]]:
+    rows: list[list[Any]] = []
+    fills: list[PatternFill | None] = []
+
+    def sort_key(query: Any, position: Any) -> tuple[str, int]:
+        number = position_number(position)
+        return (str(query or ""), number if number is not None else 999)
+
+    for item in sorted(cmp["stayed"], key=lambda row: sort_key(row.get("query"), row.get("position_curr"))):
+        fill = SAME_FILL
+        if item["change"] == "поднялась":
+            fill = UP_FILL
+        elif item["change"] == "опустилась":
+            fill = DOWN_FILL
+        rows.append(
+            [
+                item.get("query"),
+                item.get("title"),
+                item.get("source"),
+                item.get("domain"),
+                item.get("position_prev"),
+                item.get("position_curr"),
+                item.get("delta"),
+                item.get("change"),
+                item.get("url"),
+            ]
+        )
+        fills.append(fill)
+    for item in sorted(cmp["new_rows"], key=lambda row: sort_key(row.get("query"), row.get("position"))):
+        rows.append(
+            [
+                item.get("query"),
+                item.get("title"),
+                item.get("source"),
+                item.get("domain"),
+                "—",
+                item.get("position"),
+                None,
+                "новая",
+                item.get("url"),
+            ]
+        )
+        fills.append(NEW_FILL)
+    for item in sorted(cmp["gone_rows"], key=lambda row: sort_key(row.get("query"), row.get("position"))):
+        rows.append(
+            [
+                item.get("query"),
+                item.get("title"),
+                item.get("source"),
+                item.get("domain"),
+                item.get("position"),
+                "—",
+                None,
+                "выпала",
+                item.get("url"),
+            ]
+        )
+        fills.append(GONE_FILL)
+    return rows, fills
+
+
 def write_comparison_xlsx(
     previous: list[dict[str, Any]],
     current: list[dict[str, Any]],
@@ -468,6 +529,28 @@ def write_comparison_xlsx(
     )
     summary.merge_cells("A14:B16")
     summary["A14"].alignment = WRAP
+
+    table_sheet = book.create_sheet("Сводная таблица")
+    table_rows, table_fills = build_summary_table(cmp)
+    _write_rows(
+        table_sheet,
+        [
+            "Запрос",
+            "Заголовок",
+            "СМИ",
+            "Домен",
+            f"Позиция: {previous_label}",
+            f"Позиция: {current_label}",
+            "Дельта",
+            "Статус",
+            "URL",
+        ],
+        table_rows,
+        table_fills,
+    )
+    table_sheet.column_dimensions["A"].width = 36
+    table_sheet.column_dimensions["B"].width = 60
+    table_sheet.column_dimensions["H"].width = 16
 
     stayed_rows = [
         [

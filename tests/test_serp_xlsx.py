@@ -90,6 +90,8 @@ class CompareTests(unittest.TestCase):
             serp_xlsx.write_comparison_xlsx(PREV, CURR, path)
             book = load_workbook(path)
             self.assertIn("Сводка", book.sheetnames)
+            self.assertIn("Сводная таблица", book.sheetnames)
+            self.assertEqual(book["Сводная таблица"].max_row, 4)
             self.assertIn("Сравнение позиций", book.sheetnames)
             self.assertIn("Новые", book.sheetnames)
             self.assertIn("Выпавшие", book.sheetnames)
