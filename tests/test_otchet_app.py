@@ -71,6 +71,7 @@ class OtchetCollectTests(unittest.TestCase):
             self.assertTrue((Path(result["folder"]) / "dannye.csv").exists())
             self.assertTrue((Path(result["folder"]) / "otchet.md").exists())
             self.assertTrue((Path(result["folder"]) / "vydacha.xlsx").exists())
+            self.assertTrue((Path(result["folder"]) / "vydacha.docx").exists())
             runs = gnp.list_otchet_runs(Path(tmp))
             self.assertEqual(len(runs), 1)
             self.assertEqual(runs[0]["id"], result["run_id"])
@@ -93,6 +94,8 @@ class OtchetCollectTests(unittest.TestCase):
             )
             self.assertIn("compare_xlsx", result["files"])
             self.assertTrue(Path(result["files"]["compare_xlsx"]).exists())
+            self.assertIn("compare_docx", result["files"])
+            self.assertTrue(Path(result["files"]["compare_docx"]).exists())
 
 
 class WebPanelTests(unittest.TestCase):

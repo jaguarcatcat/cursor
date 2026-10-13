@@ -1127,6 +1127,23 @@ def collect(
             )
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("XLSX export skipped: %s", exc)
+    try:
+        import serp_docx
+
+        current_rows = [asdict(item) for item in all_results]
+        files["docx"] = str(
+            serp_docx.write_current_docx(current_rows, run_dir / "vydacha.docx", checked_at=checked_at)
+        )
+        if previous_rows:
+            files["compare_docx"] = str(
+                serp_docx.write_comparison_docx(
+                    previous_rows,
+                    current_rows,
+                    run_dir / "sravnenie.docx",
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("DOCX export skipped: %s", exc)
     return {
         "checked_at": checked_at,
         "run_id": run_dir.name,
