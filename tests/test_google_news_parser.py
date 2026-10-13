@@ -13,6 +13,24 @@ import google_news_parser as gnp
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
+class DefaultQueryTests(unittest.TestCase):
+    def test_expanded_query_set(self) -> None:
+        expected = [
+            "лобов вадим университет синергия",
+            "лобов вадим синергия",
+            "лобов вадим",
+            "лобов вадим георгиевич университет синергия",
+            "лобов вадим георгиевич синергия",
+            "лобов вадим георгиевич",
+            "вадим георгиевич лобов синергия",
+            "вадим георгиевич лобов",
+            "вадим лобов университет синергия",
+            "вадим лобов синергия",
+            "вадим лобов",
+        ]
+        self.assertEqual(gnp.DEFAULT_QUERIES, expected)
+
+
 class CanonicalUrlTests(unittest.TestCase):
     def test_same_page_with_tracking_and_www(self) -> None:
         left = "http://www.example-news.ru/story/other/?utm_source=google#frag"
